@@ -29,7 +29,8 @@ export const BALANCE = {
 
   /** Posição x (em módulo) do sacador, atrás da linha de fundo. */
   serveX: 9.5,
-  runSpeed: 6,
+  /** Correndo na areia. */
+  runSpeed: 4.5,
   pointPauseSec: 1.5,
   /** Saque automático se o sacador ficar parado. */
   autoServeSec: 8,

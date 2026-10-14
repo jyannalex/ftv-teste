@@ -69,7 +69,7 @@ export function outgoing(req: OutgoingRequest, rng: Rng): { vx: number; vy: numb
       break
     case 'forte': {
       target = req.overpower ? -s * (halfCourt + rng.range(1.5, 3)) : -s * (1.5 + 6.5 * force)
-      let time = 0.85 - 0.4 * force
+      let time = 0.75 - 0.4 * force
       if (Math.abs(req.from.x) > BALANCE.attackFarDist) {
         time *= 1.3
         errorScale = 2
@@ -85,6 +85,25 @@ export function outgoing(req: OutgoingRequest, rng: Rng): { vx: number; vy: numb
 
   const spread = ERROR_SPREAD[req.grade] * errorScale
   if (spread > 0) target += rng.range(-spread, spread)
-  const v = launchVelocity(req.from, { x: target, y: BALANCE.ballRadius }, mode)
+  const to = { x: target, y: BALANCE.ballRadius }
+  let v = launchVelocity(req.from, to, mode)
+  if ('time' in mode) {
+    // Bola reta para baixo não passa a faixa perto da rede: se faltar folga, abre um pouco o arco.
+    let time = mode.time
+    while (heightAtNet(req.from, v) < NET_CLEARANCE && time < MAX_ATTACK_TIME) {
+      time *= 1.05
+      v = launchVelocity(req.from, to, { time })
+    }
+  }
   return { ...v, targetX: target }
+}
+
+const NET_CLEARANCE = BALANCE.netHeight + BALANCE.ballRadius + 0.1
+const MAX_ATTACK_TIME = 2
+
+/** Altura da bola ao cruzar x = 0 (Infinity se não cruza a rede). */
+function heightAtNet(from: Point, v: { vx: number; vy: number }): number {
+  if (v.vx === 0 || Math.sign(-from.x) !== Math.sign(v.vx)) return Infinity
+  const t = -from.x / v.vx
+  return from.y + v.vy * t - 0.5 * BALANCE.gravity * t * t
 }

@@ -48,3 +48,15 @@ describe('touch', () => {
     expect(spread('ruim')).toBeGreaterThan(spread('bom') * 2)
   })
 })
+
+describe('ataque passa a rede', () => {
+  const heightAtNet = (from: { x: number; y: number }, v: { vx: number; vy: number }) => {
+    const t = -from.x / v.vx
+    return from.y + v.vy * t - 0.5 * BALANCE.gravity * t * t
+  }
+  it.each([0, 0.2, 0.5, 1])('forte perfeito de 2,7 m a 1,5 m da rede passa a faixa (força %s)', (force) => {
+    const from = { x: 1.5, y: BALANCE.contact.cabeca }
+    const v = outgoing({ action: 'forte', team: 1, from, grade: 'perfeito', force }, createRng(1))
+    expect(heightAtNet(from, v)).toBeGreaterThan(BALANCE.netHeight + BALANCE.ballRadius)
+  })
+})
