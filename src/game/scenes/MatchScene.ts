@@ -5,9 +5,10 @@ import { type Athlete, createMatch, IDLE, type MatchEvent, matchConfig, type Mat
 import { createRng } from '../../core/rng'
 import type { Side } from '../../core/rules'
 import { BALANCE } from '../../data/balance'
-import { ARENAS, type ArenaId } from '../../data/arenas'
+import type { ArenaId } from '../../data/arenas'
 import { AI_TEAMS, teamById } from '../../data/teams'
 import { Controls } from '../input/controls'
+import { getSession } from '../session'
 import { createFixedStepper, type FixedStepper } from '../loop/fixedStep'
 import { type ArenaRuntime, drawArena } from '../render/arenas'
 import { AthleteView } from '../render/AthleteView'
@@ -68,6 +69,7 @@ export class MatchScene extends Phaser.Scene {
   private ataquePointer: number | null = null
   private arena!: ArenaRuntime
   private trail!: BallTrail
+  private tipText?: Phaser.GameObjects.Text
 
   constructor() {
     super('Match')
@@ -75,9 +77,6 @@ export class MatchScene extends Phaser.Scene {
 
   init(data: Partial<MatchSceneData>): void {
     this.cfg = { ...DEFAULT_DATA, ...data }
-    // Provisório até o menu: ?arena=clube|arena escolhe o cenário.
-    const fromUrl = new URLSearchParams(location.search).get('arena')
-    if (!data.arena && ARENAS.some((a) => a.id === fromUrl)) this.cfg.arena = fromUrl as ArenaId
     this.paused = false
     this.endT = 0
     this.athleteViews = []
@@ -116,6 +115,12 @@ export class MatchScene extends Phaser.Scene {
     this.createButtons()
     this.createKeyboard()
     this.createPauseButton()
+    this.tipText = getSession().save.tipsShown
+      ? undefined
+      : this.add
+          .text(640, 170, '', { fontFamily: FONT, fontSize: '24px', color: '#ffffff', backgroundColor: '#0b1d33cc', padding: { x: 18, y: 10 } })
+          .setOrigin(0.5)
+          .setVisible(false)
     this.stepper = createFixedStepper(() => this.tick())
 
     const onBlur = () => this.setPaused(true)
@@ -172,6 +177,7 @@ export class MatchScene extends Phaser.Scene {
         break
       }
       case 'ponto': {
+        this.endTips()
         this.trail.stop()
         if (s.ball.y < 0.5) sandPuff(this, toScreenX(s.ball.x), toScreenY(0), 14)
         const text = e.reason === 'fora' ? 'FORA!' : e.reason === 'falta' ? 'FALTA!' : 'PONTO!'
@@ -195,6 +201,27 @@ export class MatchScene extends Phaser.Scene {
     this.trail.update(s.ball)
     this.ballView.draw(s.ball, dt)
     this.hud.update(s, marker, dt)
+    this.updateTips()
+  }
+
+  /** Dicas contextuais no primeiro rally da primeira partida. */
+  private updateTips(): void {
+    const tip = this.tipText
+    if (!tip) return
+    const s = this.state
+    const plan = s.phase === 'rally' ? s.plan : null
+    let text = ''
+    if (s.phase === 'saque' && s.score.servingTeam === 0) text = 'Segure ATAQUE e solte para sacar'
+    else if (plan?.team === 0 && plan.touchIndex < 3) text = 'Aperte RECEPÇÃO quando a bola chegar!'
+    else if (plan?.team === 0) text = 'Toque rápido em ATAQUE = Pingo  ·  Segure = ataque forte'
+    tip.setText(text).setVisible(text !== '')
+  }
+
+  private endTips(): void {
+    if (!this.tipText) return
+    this.tipText.destroy()
+    this.tipText = undefined
+    getSession().persist((d) => ({ ...d, tipsShown: true }))
   }
 
   private poseOf(a: Athlete, i: number): Pose {
@@ -224,18 +251,7 @@ export class MatchScene extends Phaser.Scene {
   private finish(): void {
     const s = this.state
     const result: MatchResult = { winner: s.winner ?? 0, points: s.score.points, data: this.cfg }
-    if (this.game.scene.keys['Result']) {
-      this.scene.start('Result', result)
-      return
-    }
-    if (this.endT < END_DELAY_SEC + 0.01) {
-      this.add
-        .text(640, 400, 'Fim — toque para jogar de novo', { fontFamily: FONT, fontSize: '28px', color: '#ffffff' })
-        .setOrigin(0.5)
-        .setStroke('#0b1d33', 6)
-      this.input.once('pointerdown', () => this.scene.restart(this.cfg))
-      this.endT = END_DELAY_SEC + 1
-    }
+    this.scene.start('Result', result)
   }
 
   private touchEffects(action: TouchAction, a: Athlete): void {
@@ -349,7 +365,7 @@ export class MatchScene extends Phaser.Scene {
     }
     opt(330, 'Continuar', () => this.setPaused(false))
     opt(410, 'Reiniciar', () => this.scene.restart(this.cfg))
-    opt(490, 'Sair', () => this.scene.start(this.game.scene.keys['Menu'] ? 'Menu' : 'Match'))
+    opt(490, 'Sair', () => this.scene.start('Menu'))
     this.pauseLayer = layer
   }
 }
