@@ -132,11 +132,3 @@ function defend(s: MatchState, plan: ContactPlan, inputs: [TeamInput, TeamInput]
     s.plan = null
   }
 }
-
-/** Enquanto o toque ainda pode acontecer, a bola não "cai" (ele sai do ponto planejado). */
-export function touchStillPossible(s: MatchState): boolean {
-  const plan = s.plan
-  if (!plan) return false
-  const grace = plan.incoming && plan.touchIndex === 1 ? BALANCE.defense.window : BALANCE.contactGrace
-  return s.time <= plan.tIdeal + grace
-}

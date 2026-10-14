@@ -141,3 +141,34 @@ describe('alcance ao longo da trajetória', () => {
     expect(ev.some((e) => e.type === 'toque')).toBe(true)
   })
 })
+
+describe('bola no chão é ponto na hora', () => {
+  it('DEFENDER apertado depois de a bola tocar o chão não tira a bola do chão', () => {
+    const s = createMatch(matchConfig({ humanTeam: 1 }))
+    s.phase = 'rally'
+    s.touch = { team: 0, count: 3, lastAthlete: 1 }
+    const from = { x: -1.4, y: 3.2, z: 0 }
+    const v = outgoing({ action: 'forte', team: 0, from, aim: 'fundo', lane: 0, precise: true }, createRng(1))
+    s.ball = { ...from, vx: v.vx, vy: v.vy, vz: v.vz }
+    s.lastAttack = { team: 0, kind: 'forte' }
+    for (const a of s.athletes) a.z = 0
+    s.plan = planContact(s)
+    const p = s.plan!
+    s.controlled = p.athleteId
+    // Longe demais para a defesa automática, perto o bastante para o DEFENDER.
+    s.athletes[p.athleteId].x = p.x
+    s.athletes[p.athleteId].z = p.z + 1.6
+    let landed = false
+    let pressed = false
+    const ev: MatchEvent[] = []
+    for (let i = 0; i < 200 && !ev.some((e) => e.type === 'ponto'); i++) {
+      const press = landed && !pressed
+      if (press) pressed = true
+      ev.push(...step(s, teamInputs(1, { forte: press })))
+      if (s.ball.y <= 0.11 + 1e-9) landed = true
+    }
+    expect(pressed || ev.some((e) => e.type === 'ponto')).toBe(true)
+    expect(ev.some((e) => e.type === 'toque')).toBe(false)
+    expect(ev).toContainEqual({ type: 'ponto', winner: 0, reason: 'chao' })
+  })
+})

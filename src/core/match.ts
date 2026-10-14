@@ -1,7 +1,7 @@
 import { BALANCE } from '../data/balance'
 import { isPartnerAI, replan, setAction, switchControlled, updatePositions } from './contact'
 import { type Ball, bounceDead, launchVelocity, stepBall } from './physics'
-import { type Edges, resolveContact, touchStillPossible } from './resolve'
+import { type Edges, resolveContact } from './resolve'
 import { createRng, type Rng } from './rng'
 import {
   awardPoint,
@@ -349,11 +349,8 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT, par
         resolveContact(s, acting, actingEdges, events)
       } else resolveContact(s, inputs, edges, events)
       updatePositions(s, inputs, gdt, partner)
-      if (r.landed) {
-        // A bola que tocou o chão fica ali enquanto a defesa ainda pode acontecer; depois, quica (visual).
-        if (touchStillPossible(s)) s.ball = { ...s.ball, vx: 0, vy: 0, vz: 0 }
-        else endRally(s, events)
-      }
+      // Bola no chão é ponto na hora: o contato planejado (peito/chapa) é sempre antes do pouso.
+      if (r.landed) endRally(s, events)
       break
     }
     case 'ponto': {

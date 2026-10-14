@@ -77,7 +77,7 @@ export function launchVelocity(from: Point, to: Point, mode: { apex: number } | 
   return { vx: dx / tTotal, vy, vz: dz / tTotal }
 }
 
-/** Quique da bola morta depois do ponto (só visual). */
+/** Quique da bola morta depois do ponto (só visual): baixo e curto, a areia segura a bola. */
 export function bounceDead(b: Ball): Ball {
-  return { x: b.x, y: BALANCE.ballRadius, z: b.z, vx: b.vx * 0.6, vy: Math.abs(b.vy) * 0.4, vz: b.vz * 0.6 }
+  return { x: b.x, y: BALANCE.ballRadius, z: b.z, vx: b.vx * 0.15, vy: Math.min(3, Math.abs(b.vy) * 0.3), vz: b.vz * 0.15 }
 }
