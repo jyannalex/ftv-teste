@@ -1,62 +1,65 @@
 import { describe, expect, it } from 'vitest'
 import { BALANCE } from '../../src/data/balance'
 import { createRng } from '../../src/core/rng'
-import { classifyHold, type Grade, gradeTiming, outgoing, windowsFor } from '../../src/core/touch'
+import { type Aim, aimFromMove, outgoing, type Quality } from '../../src/core/touch'
 
-describe('touch', () => {
-  it('notas de timing pelas janelas base', () => {
-    const w = windowsFor({ incomingForce: 0, incomingShark: false, easyAssist: false })
-    expect(gradeTiming(0.04, w)).toBe('perfeito')
-    expect(gradeTiming(-0.1, w)).toBe('bom')
-    expect(gradeTiming(0.17, w)).toBe('ruim')
-    expect(gradeTiming(0.2, w)).toBeNull()
+const heightAtNet = (from: { x: number; y: number }, v: { vx: number; vy: number }) => {
+  const t = -from.x / v.vx
+  return from.y + v.vy * t - 0.5 * BALANCE.gravity * t * t
+}
+
+describe('touch arcade', () => {
+  it('aimFromMove: para a rede = curto, para trás = fundo, nos dois lados', () => {
+    expect(aimFromMove(0, 1)).toBe('curto')
+    expect(aimFromMove(0, -1)).toBe('fundo')
+    expect(aimFromMove(1, -1)).toBe('curto')
+    expect(aimFromMove(1, 1)).toBe('fundo')
+    expect(aimFromMove(0, 0)).toBe('meio')
   })
 
-  it('Fácil alarga a janela ×1,5; ataque forte encolhe', () => {
-    expect(gradeTiming(0.07, windowsFor({ incomingForce: 0, incomingShark: false, easyAssist: true }))).toBe('perfeito')
-    expect(windowsFor({ incomingForce: 1, incomingShark: false, easyAssist: false }).ruim).toBeCloseTo(0.108)
+  it.each([
+    ['curto', 2.5],
+    ['meio', 5.0],
+    ['fundo', 7.8],
+  ] as const)('forte do time 0 com mira %s cai a %s m (±0,4)', (aim: Aim, d) => {
+    const r = outgoing({ action: 'forte', team: 0, from: { x: -1, y: 3 }, quality: 'normal', aim }, createRng(1))
+    expect(Math.abs(r.targetX - d)).toBeLessThanOrEqual(0.4)
   })
 
-  it('Sharkataque só aceita Perfeito na janela de 0,025', () => {
-    const w = windowsFor({ incomingForce: 1, incomingShark: true, easyAssist: false })
-    expect(gradeTiming(0.02, w)).toBe('perfeito')
-    expect(gradeTiming(0.04, w)).toBeNull()
+  it('Shark do time 1 cai no lado do time 0 e é mais rápido que o forte', () => {
+    const from = { x: 1, y: 3 }
+    const shark = outgoing({ action: 'sharkataque', team: 1, from, quality: 'normal', aim: 'fundo' }, createRng(2))
+    const forte = outgoing({ action: 'forte', team: 1, from, quality: 'normal', aim: 'fundo' }, createRng(2))
+    expect(shark.targetX).toBeLessThan(-7)
+    expect(Math.abs(shark.vx)).toBeGreaterThan(Math.abs(forte.vx))
   })
 
-  it('classifyHold: pingo, força e exagero', () => {
-    expect(classifyHold(100)).toEqual({ kind: 'pingo' })
-    expect(classifyHold(450)).toEqual({ kind: 'forte', force: 0.5, overpower: false })
-    expect(classifyHold(800)).toEqual({ kind: 'forte', force: 1, overpower: false })
-    expect(classifyHold(950)).toMatchObject({ kind: 'forte', overpower: true })
+  it('pingo do time 1 cai a ~1,2 m da rede no lado 0', () => {
+    const r = outgoing({ action: 'pingo', team: 1, from: { x: 1, y: 3 }, quality: 'normal' }, createRng(3))
+    expect(r.targetX).toBeGreaterThanOrEqual(-1.6)
+    expect(r.targetX).toBeLessThanOrEqual(-0.8)
   })
 
-  it('pingo perfeito do time 1 cai a 1,2 m da rede no lado do time 0', () => {
-    expect(outgoing({ action: 'pingo', team: 1, from: { x: 1, y: 2.5 }, grade: 'perfeito' }, createRng(1)).targetX).toBeCloseTo(-1.2)
+  it('fraco vai ao meio do outro lado', () => {
+    const r = outgoing({ action: 'fraco', team: 0, from: { x: -1, y: 2.7 }, quality: 'normal' }, createRng(4))
+    expect(r.targetX).toBeGreaterThanOrEqual(4.6)
+    expect(r.targetX).toBeLessThanOrEqual(5.4)
   })
 
-  it('forte com exagero cai fora', () => {
-    const r = outgoing({ action: 'forte', team: 0, from: { x: -1, y: 2.5 }, grade: 'perfeito', force: 1, overpower: true }, createRng(1))
-    expect(r.targetX).toBeGreaterThan(BALANCE.halfCourt)
-  })
-
-  it('ruim espalha mais que bom', () => {
-    const spread = (g: Grade) => {
-      const r = createRng(3)
-      const xs = Array.from({ length: 200 }, () => outgoing({ action: 'passe', team: 0, from: { x: -4, y: 1 }, grade: g }, r).targetX)
+  it('peixinho espalha mais que normal', () => {
+    const spread = (q: Quality) => {
+      const r = createRng(5)
+      const xs = Array.from({ length: 200 }, () => outgoing({ action: 'passe', team: 0, from: { x: -4, y: 0.45 }, quality: q }, r).targetX)
       return Math.max(...xs) - Math.min(...xs)
     }
-    expect(spread('ruim')).toBeGreaterThan(spread('bom') * 2)
+    expect(spread('peixinho')).toBeGreaterThan(spread('normal') * 2)
   })
-})
 
-describe('ataque passa a rede', () => {
-  const heightAtNet = (from: { x: number; y: number }, v: { vx: number; vy: number }) => {
-    const t = -from.x / v.vx
-    return from.y + v.vy * t - 0.5 * BALANCE.gravity * t * t
-  }
-  it.each([0, 0.2, 0.5, 1])('forte perfeito de 2,7 m a 1,5 m da rede passa a faixa (força %s)', (force) => {
-    const from = { x: 1.5, y: BALANCE.contact.cabeca }
-    const v = outgoing({ action: 'forte', team: 1, from, grade: 'perfeito', force }, createRng(1))
-    expect(heightAtNet(from, v)).toBeGreaterThan(BALANCE.netHeight + BALANCE.ballRadius)
+  it.each([0.3, 1.5])('forte de 3 m de altura a %s m da rede passa a faixa', (x) => {
+    for (const aim of ['curto', 'meio', 'fundo'] as const) {
+      const from = { x, y: 3 }
+      const v = outgoing({ action: 'forte', team: 1, from, quality: 'normal', aim }, createRng(6))
+      expect(heightAtNet(from, v)).toBeGreaterThan(BALANCE.netHeight + BALANCE.ballRadius)
+    }
   })
 })

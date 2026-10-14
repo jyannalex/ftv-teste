@@ -12,29 +12,30 @@ export const BALANCE = {
   /** Além disso a bola é considerada caída (segurança contra bola perdida). */
   worldLimit: 30,
 
-  /** Janelas de timing (segundos, para mais ou para menos do momento ideal). */
-  windows: { perfeito: 0.05, bom: 0.11, ruim: 0.18 },
-  /** Defender um Sharkataque: só Perfeito, nesta janela. */
-  sharkWindow: 0.025,
-  /** Fácil: janelas do time humano ×1,5. */
-  easyWindowScale: 1.5,
-  /** Ataque forte encolhe a janela da defesa por (1 − 0,4·força). */
-  forceWindowShrink: 0.4,
-  hold: { pingoMaxMs: 150, forceRampMs: 600, overpowerMs: 900 },
-  meter: { perfeito: 8, defesaForte: 12, ponto: 10, max: 100 },
-  /** Distância máxima da rede para o Sharkataque sair. */
-  sharkMaxNetDist: 2.5,
-  /** Além desta distância da rede, o ataque forte perde força e precisão. */
-  attackFarDist: 3,
+  /** Velocidades (m/s): controle manual, ajuda automática e posicionamento base. */
+  move: { manual: 5, assist: 2.8, base: 4.5 },
+  /** Distância máxima até a bola para o toque automático. */
+  reach: 0.7,
+  /** Peixinho: alcance e intervalo do botão em volta do contato (s). */
+  dive: { reach: 2.2, before: 0.6, after: 0.05 },
+  /** Bola com pouso além da linha mais esta margem: ninguém toca. */
+  outMargin: 0.3,
+  /** Câmera lenta do ataque do jogador. */
+  slowMo: { scale: 0.25, jumpMaxDist: 1.2 },
+  /** Mira do ataque e do saque (distância da rede). */
+  aimDepth: { curto: 2.5, meio: 5.0, fundo: 7.8 },
+  serveDepth: { curto: 3.0, meio: 5.5, fundo: 8.0 },
+  attack: { forteTime: 0.45, sharkTime: 0.32, pingoDist: 1.2, fracoDepth: 5.0, fracoApex: 4.0 },
+  /** Erro de alvo (m, para mais ou para menos) por qualidade do toque. */
+  quality: { normal: 0.4, peixinho: 1.2 },
+  meter: { toque: 5, defesaForte: 12, ponto: 10, max: 100 },
 
   /** Posição x (em módulo) do sacador, atrás da linha de fundo. */
   serveX: 9.5,
-  /** Correndo na areia. */
-  runSpeed: 4.5,
   pointPauseSec: 1.5,
   /** Saque automático se o sacador ficar parado. */
   autoServeSec: 8,
-  serve: { fullMs: 800, overMs: 1000, apex: 4.3 },
+  serve: { apex: 4.3 },
 
   /** Altura da bola no contato de cada parte do corpo (cabeça já com o pulo). */
   contact: { chapa: 0.45, peito: 1.3, cabeca: 2.7 },
