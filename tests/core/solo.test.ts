@@ -98,3 +98,28 @@ it('controle do teste acima: sem a opção, a mesma IA usaria o Shark', () => {
   const ev = run(s, () => IDLE, (st) => ai.think(st), 400, 'toque')
   expect(ev.find((e): e is Toque => e.type === 'toque')?.action).toBe('sharkataque')
 })
+
+describe('lado do jogador (direito = em cima, esquerdo = embaixo)', () => {
+  it('esquerdo: meu atleta começa embaixo (z+) e o parceiro em cima', () => {
+    const s = createMatch(matchConfig({ humanTeam: 0, control: 'solo', humanLane: 1 }))
+    expect(s.athletes[0].z).toBeGreaterThan(0)
+    expect(s.athletes[1].z).toBeLessThan(0)
+  })
+
+  it('direito: meu atleta começa em cima (z−)', () => {
+    const s = createMatch(matchConfig({ humanTeam: 0, control: 'solo', humanLane: -1 }))
+    expect(s.athletes[0].z).toBeLessThan(0)
+    expect(s.athletes[1].z).toBeGreaterThan(0)
+  })
+
+  it('na defesa, o parceiro IA volta para o lado oposto ao meu, mesmo se eu sair do meu lado', () => {
+    const s = solo(4) // bola indo para o outro time
+    s.config.humanLane = 1
+    s.ball.y = 12
+    s.plan = planContact(s)
+    s.athletes[0].z = -3 // fui para cima
+    s.athletes[1].z = 2
+    for (let i = 0; i < 150; i++) step(s, [IDLE, IDLE], DT, IDLE)
+    expect(s.athletes[1].z).toBeCloseTo(-2.2, 1)
+  })
+})

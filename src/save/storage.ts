@@ -98,7 +98,9 @@ function upgrade(v: unknown): unknown {
   if (!isObj(v)) return v
   const options = isObj(v.options) ? { control: 'solo', ...v.options } : v.options
   if (isObj(options) && options.control !== 'solo' && options.control !== 'dupla') options.control = 'solo'
-  return { ...v, options, character: isCharacter(v.character) ? v.character : structuredClone(DEFAULT_CHARACTER) }
+  // Personagem salvo antes da escolha de lado: ganha o lado padrão.
+  const c = isObj(v.character) && !('side' in v.character) ? { ...v.character, side: DEFAULT_CHARACTER.side } : v.character
+  return { ...v, options, character: isCharacter(c) ? c : structuredClone(DEFAULT_CHARACTER) }
 }
 
 // ---- validação ----

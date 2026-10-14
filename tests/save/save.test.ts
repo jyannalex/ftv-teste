@@ -92,9 +92,16 @@ describe('personagem e modo de controle no save', () => {
 
   it('ida e volta com personagem e controle', () => {
     const st = mem()
-    const character = { name: 'Zé', skin: SKIN_TONES[1], hair: HAIR_COLORS[2], style: 'blackPower' as const, shirt: 0x1976d2, number: 23 }
+    const character = { name: 'Zé', skin: SKIN_TONES[1], hair: HAIR_COLORS[2], style: 'blackPower' as const, shirt: 0x1976d2, number: 23, side: 'esquerdo' as const }
     const d = { ...DEFAULT_SAVE, options: { ...DEFAULT_SAVE.options, control: 'dupla' as const }, character }
     writeSave(st, d)
     expect(loadSave(st).data).toEqual(d)
   })
+})
+
+it('personagem salvo antes do lado ganha o lado padrão sem perder o resto', () => {
+  const st = mem()
+  const { side: _s, ...old } = { ...DEFAULT_CHARACTER, name: 'Zé', number: 23 }
+  st.setItem(SAVE_KEY, JSON.stringify({ ...DEFAULT_SAVE, character: old }))
+  expect(loadSave(st).data.character).toEqual({ ...DEFAULT_CHARACTER, name: 'Zé', number: 23 })
 })

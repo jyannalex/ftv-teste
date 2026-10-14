@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import type { Athlete } from '../../core/match'
-import { type Character, HAIR_COLORS, HAIR_STYLES, NAME_MAX, SKIN_TONES } from '../../data/character'
+import { type Character, HAIR_COLORS, HAIR_STYLES, NAME_MAX, type PlayerSide, SKIN_TONES } from '../../data/character'
 import { PLAYER_SHIRTS } from '../../data/teams'
 import { AthleteView } from '../render/AthleteView'
 import { poseFor } from '../render/poses'
@@ -31,14 +31,14 @@ export class CharacterScene extends Phaser.Scene {
     panel(this, LEFT_X, 365, 700, 510)
     panel(this, PREVIEW.x, 365, 340, 510)
 
-    label(this, LEFT_X, 140, 'Nome')
-    const input = this.add.dom(LEFT_X, 185, 'input', 'width: 320px; height: 42px; font: 22px Arial; text-align: center; border-radius: 10px; border: 3px solid #fff; background: #ffffffee;')
+    label(this, LEFT_X, 128, 'Nome')
+    const input = this.add.dom(LEFT_X, 170, 'input', 'width: 320px; height: 42px; font: 22px Arial; text-align: center; border-radius: 10px; border: 3px solid #fff; background: #ffffffee;')
     this.nameInput = input.node as HTMLInputElement
     this.nameInput.maxLength = NAME_MAX
     this.nameInput.value = this.draft.name
 
     this.preview = new AthleteView(this, this.look(), 1, (x, y) => ({ x: PREVIEW.x + x * PREVIEW.k, y: PREVIEW.y - y * PREVIEW.k, k: PREVIEW.k }))
-    this.numberText = label(this, LEFT_X + 80, 540, '', 30)
+    this.numberText = label(this, LEFT_X + 80, 495, '', 30)
     this.renderRows()
 
     button(this, LEFT_X - 110, 660, 'Voltar', () => this.scene.start('Menu'), { w: 200, color: 0x546e7a })
@@ -76,11 +76,11 @@ export class CharacterScene extends Phaser.Scene {
         this.rows.push(dot)
       })
     }
-    swatches(255, 'Pele', SKIN_TONES, d.skin, (skin) => this.change((x) => ({ ...x, skin })))
-    this.rows.push(label(this, 150, 330, 'Cabelo', 20).setOrigin(0, 0.5))
+    swatches(230, 'Pele', SKIN_TONES, d.skin, (skin) => this.change((x) => ({ ...x, skin })))
+    this.rows.push(label(this, 150, 297, 'Cabelo', 20).setOrigin(0, 0.5))
     HAIR_STYLES.forEach((h, i) =>
       this.rows.push(
-        button(this, 360 + i * 128, 330, h.name, () => this.change((x) => ({ ...x, style: h.id })), {
+        button(this, 360 + i * 128, 297, h.name, () => this.change((x) => ({ ...x, style: h.id })), {
           w: 120,
           h: 46,
           size: 16,
@@ -88,13 +88,30 @@ export class CharacterScene extends Phaser.Scene {
         }),
       ),
     )
-    swatches(400, 'Cor do cabelo', HAIR_COLORS, d.hair, (hair) => this.change((x) => ({ ...x, hair })))
-    swatches(470, 'Camisa', PLAYER_SHIRTS, d.shirt, (shirt) => this.change((x) => ({ ...x, shirt })))
+    swatches(363, 'Cor do cabelo', HAIR_COLORS, d.hair, (hair) => this.change((x) => ({ ...x, hair })))
+    swatches(429, 'Camisa', PLAYER_SHIRTS, d.shirt, (shirt) => this.change((x) => ({ ...x, shirt })))
 
-    this.rows.push(label(this, 150, 540, 'Número', 20).setOrigin(0, 0.5))
+    this.rows.push(label(this, 150, 495, 'Número', 20).setOrigin(0, 0.5))
     const step = (delta: number) => this.change((x) => ({ ...x, number: ((x.number - 1 + delta + 99) % 99) + 1 }))
-    this.rows.push(button(this, LEFT_X - 10, 540, '−', () => step(-1), { w: 64, h: 50, size: 28 }))
-    this.rows.push(button(this, LEFT_X + 170, 540, '+', () => step(1), { w: 64, h: 50, size: 28 }))
+    this.rows.push(button(this, LEFT_X - 10, 495, '−', () => step(-1), { w: 64, h: 50, size: 28 }))
+    this.rows.push(button(this, LEFT_X + 170, 495, '+', () => step(1), { w: 64, h: 50, size: 28 }))
+
+    // Lado: direito joga em cima na tela, esquerdo embaixo.
+    this.rows.push(label(this, 150, 565, 'Lado', 20).setOrigin(0, 0.5))
+    const sides: [PlayerSide, string][] = [
+      ['direito', 'Direito (em cima)'],
+      ['esquerdo', 'Esquerdo (embaixo)'],
+    ]
+    sides.forEach(([side, name], i) =>
+      this.rows.push(
+        button(this, 400 + i * 220, 565, name, () => this.change((x) => ({ ...x, side })), {
+          w: 210,
+          h: 46,
+          size: 16,
+          color: side === d.side ? 0xf9a825 : 0x37474f,
+        }),
+      ),
+    )
     this.numberText.setText(String(d.number))
   }
 

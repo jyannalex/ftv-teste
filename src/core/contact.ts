@@ -198,7 +198,9 @@ export function updatePositions(s: MatchState, inputs: [TeamInput, TeamInput], d
     const baseOf = (x: Athlete) => {
       // Com a bola, quem não toca vai para perto da rede, na própria faixa.
       if (hasBall) return { x: sign * bp.support, z: Math.max(-bp.supportZ, Math.min(bp.supportZ, x.z)) }
-      // Sem a bola, lado a lado; o parceiro do jogador fica na faixa oposta à do controlado.
+      // Sem a bola, lado a lado. Modo solo: o parceiro IA fica no lado dele (oposto ao escolhido pelo jogador).
+      if (human && s.config.control === 'solo') return { x: sign * bp.defense, z: -s.config.humanLane * bp.laneZ }
+      // Modo dupla: o parceiro do jogador fica na faixa oposta à do controlado.
       const near = ctrl ? ctrl.z < 0 : x === (a.z <= b.z ? b : a)
       return { x: sign * bp.defense, z: (near ? 1 : -1) * bp.laneZ }
     }

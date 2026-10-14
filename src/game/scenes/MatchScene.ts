@@ -8,6 +8,7 @@ import { createRng } from '../../core/rng'
 import { type Side, sideSign } from '../../core/rules'
 import { BALANCE } from '../../data/balance'
 import type { ArenaId } from '../../data/arenas'
+import { laneOfSide } from '../../data/character'
 import { ASSIST, type Difficulty, PARTNER_SKILL } from '../../data/difficulty'
 import { isMeterFull } from '../../core/specialMeter'
 import { AI_TEAMS, teamById } from '../../data/teams'
@@ -143,7 +144,7 @@ export class MatchScene extends Phaser.Scene {
     const assist = ASSIST[this.cfg.difficulty]
     const save = getSession().save
     const control = save.options.control
-    this.state = createMatch(matchConfig({ seed, humanTeam: 0, humanReach: assist.reach, slowMoSec: assist.slowMoSec, control }))
+    this.state = createMatch(matchConfig({ seed, humanTeam: 0, humanReach: assist.reach, slowMoSec: assist.slowMoSec, control, humanLane: laneOfSide(save.character.side) }))
     this.ai = createAI(1, this.cfg.skill, personality, createRng(seed + 1))
     // O parceiro joga sozinho, mas não gasta o Sharkataque: o especial fica com o jogador.
     this.partnerAI = control === 'solo' ? createAI(0, PARTNER_SKILL, 'equilibrado', createRng(seed + 2), { shark: false }) : null

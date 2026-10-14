@@ -51,10 +51,12 @@ export type MatchConfig = {
    * (entrada própria no step).
    */
   control: 'dupla' | 'solo'
+  /** Lado do atleta do jogador: −1 em cima na tela (direito), +1 embaixo (esquerdo). O parceiro fica no outro. */
+  humanLane: -1 | 1
 }
 
 export function matchConfig(p: Partial<MatchConfig> = {}): MatchConfig {
-  return { seed: 1, targetPoints: 12, humanTeam: 0, humanReach: BALANCE.reach, slowMoSec: 1.5, control: 'dupla', ...p }
+  return { seed: 1, targetPoints: 12, humanTeam: 0, humanReach: BALANCE.reach, slowMoSec: 1.5, control: 'dupla', humanLane: -1, ...p }
 }
 
 export type AthleteAction =
@@ -190,13 +192,20 @@ export function createMatch(config: MatchConfig): MatchState {
   return s
 }
 
+/** Faixa (lado) de cada atleta: o do jogador é o escolhido, o parceiro fica no outro. */
+function laneOf(s: MatchState, a: Athlete): -1 | 1 {
+  const h = s.config.humanLane
+  if (a.team === s.config.humanTeam) return a.id % 2 === 0 ? h : h === -1 ? 1 : -1
+  return a.id % 2 === 0 ? -1 : 1
+}
+
 /** Coloca atletas e bola nas posições de saque. */
 function setupServe(s: MatchState): void {
   const server = s.score.server
   for (const a of s.athletes) {
     const sign = sideSign(a.team)
     const bp = BALANCE.basePos
-    const lane = a.id % 2 === 0 ? -1 : 1
+    const lane = laneOf(s, a)
     a.x = sign * bp.defense
     a.z = lane * bp.laneZ
     if (a.id === server) {
