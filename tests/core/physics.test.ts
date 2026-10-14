@@ -19,19 +19,26 @@ const sim = (start: Ball) => {
 describe('physics', () => {
   it('lançamento por ápice cai no alvo e passa pelo ápice pedido', () => {
     const v = launchVelocity({ x: -5, y: 1 }, { x: 5, y: BALANCE.ballRadius }, { apex: 5 })
-    const r = sim({ x: -5, y: 1, ...v })
+    const r = sim({ x: -5, y: 1, z: 0, ...v })
     expect(Math.abs(r.b.x - 5)).toBeLessThan(0.15)
     expect(Math.abs(r.maxY - 5)).toBeLessThan(0.1)
     expect(r.hit).toBe(false)
   })
 
+  it('lançamento acerta o z do alvo e a bola anda em z com velocidade constante', () => {
+    const v = launchVelocity({ x: -5, y: 1, z: -2 }, { x: 5, y: BALANCE.ballRadius, z: 3 }, { apex: 5 })
+    const r = sim({ x: -5, y: 1, z: -2, ...v })
+    expect(Math.abs(r.b.z - 3)).toBeLessThan(0.15)
+    expect(r.b.vz).toBe(v.vz)
+  })
+
   it('lançamento por tempo cai no tempo pedido (±1 passo)', () => {
     const v = launchVelocity({ x: -1, y: 2.5 }, { x: 6, y: BALANCE.ballRadius }, { time: 0.6 })
-    expect(Math.abs(sim({ x: -1, y: 2.5, ...v }).steps - 36)).toBeLessThanOrEqual(1)
+    expect(Math.abs(sim({ x: -1, y: 2.5, z: 0, ...v }).steps - 36)).toBeLessThanOrEqual(1)
   })
 
   it('bola baixa bate na rede e volta', () => {
-    let b: Ball = { x: -0.5, y: 1, vx: 8, vy: 0 }
+    let b: Ball = { x: -0.5, y: 1, z: 0, vx: 8, vy: 0, vz: 0 }
     let hit = false
     for (let i = 0; i < 10; i++) {
       const r = stepBall(b, 1 / 60)
@@ -44,16 +51,18 @@ describe('physics', () => {
   })
 
   it('bola caindo parada sobre a faixa da rede cai para um lado (Review Focus 3)', () => {
-    const r = sim({ x: 0, y: 3, vx: 0, vy: 0 })
+    const r = sim({ x: 0, y: 3, z: 0, vx: 0, vy: 0, vz: 0 })
     expect(Math.abs(r.b.x)).toBeGreaterThan(BALANCE.ballRadius)
   })
 
   it('predictLanding confere com a simulação', () => {
-    const b = { x: 2, y: 3, vx: 3, vy: 4 }
-    expect(Math.abs(predictLanding(b).x - sim(b).b.x)).toBeLessThan(0.15)
+    const b = { x: 2, y: 3, z: 1, vx: 3, vy: 4, vz: -1.5 }
+    const end = sim(b).b
+    expect(Math.abs(predictLanding(b).x - end.x)).toBeLessThan(0.15)
+    expect(Math.abs(predictLanding(b).z - end.z)).toBeLessThan(0.15)
   })
 
   it('timeToHeight é null quando a bola não alcança a altura', () => {
-    expect(timeToHeight({ x: 0, y: 1, vx: 0, vy: 1 }, 3)).toBeNull()
+    expect(timeToHeight({ x: 0, y: 1, z: 0, vx: 0, vy: 1, vz: 0 }, 3)).toBeNull()
   })
 })

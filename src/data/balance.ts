@@ -1,5 +1,5 @@
 /**
- * Constantes de jogo. Mundo em metros, visão lateral, rede em x = 0.
+ * Constantes de jogo. Mundo em metros: x comprimento (rede em x = 0), y altura, z largura.
  * Valores pensados para ajuste fino depois de jogar.
  */
 export const BALANCE = {
@@ -9,6 +9,8 @@ export const BALANCE = {
   netHeight: 2.2,
   /** Metade do comprimento da quadra (a quadra vai de -9 a 9). */
   halfCourt: 9,
+  /** Metade da largura da quadra (z vai de -4,5 a 4,5). */
+  halfWidth: 4.5,
   /** Além disso a bola é considerada caída (segurança contra bola perdida). */
   worldLimit: 30,
 

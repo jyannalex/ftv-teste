@@ -47,7 +47,7 @@ export function stateWithAttackPlan(team: Side, defendersX: [number, number], hu
   const first = team * 2
   const attacker = first + 1
   s.touch = { team, count: 2, lastAthlete: first }
-  s.ball = { x: sign * 1.0, y: 5, vx: 0, vy: 0 }
+  s.ball = { x: sign * 1.0, y: 5, z: 0, vx: 0, vy: 0, vz: 0 }
   s.athletes[first].x = sign * 3
   s.athletes[attacker].x = sign * 1.3
   const otherFirst = (1 - team) * 2
@@ -65,7 +65,7 @@ export function incomingBall(x: number, opts: { humanTeam?: Side | null; vx?: nu
   s.phase = 'rally'
   const team: Side = x < 0 ? 0 : 1
   s.touch = { team: team === 0 ? 1 : 0, count: 1, lastAthlete: team === 0 ? 2 : 0 }
-  s.ball = { x, y: 5, vx: opts.vx ?? 0, vy: 0 }
+  s.ball = { x, y: 5, z: 0, vx: opts.vx ?? 0, vy: 0, vz: 0 }
   s.plan = planContact(s)
   if (opts.humanTeam === team && s.plan) s.controlled = s.plan.athleteId
   return s

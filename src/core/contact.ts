@@ -15,7 +15,7 @@ export function setAction(a: Athlete, action: AthleteAction): void {
 export function planContact(s: MatchState): ContactPlan | null {
   const landing = predictLanding(s.ball)
   // Bola indo para fora: ninguém toca.
-  if (Math.abs(landing.x) > BALANCE.halfCourt + BALANCE.outMargin) return null
+  if (Math.abs(landing.x) > BALANCE.halfCourt + BALANCE.outMargin || Math.abs(landing.z) > BALANCE.halfWidth + BALANCE.outMargin) return null
   const team = sideOf(landing.x)
   // Sharkataque não é defendido.
   if (s.lastAttack?.kind === 'shark' && s.lastAttack.team !== team) return null

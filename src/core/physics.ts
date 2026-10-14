@@ -1,7 +1,8 @@
 import { BALANCE } from '../data/balance'
 
-export type Ball = { x: number; y: number; vx: number; vy: number }
-export type Point = { x: number; y: number }
+/** Bola em 3D: x comprimento, y altura, z largura (velocidade em z constante). */
+export type Ball = { x: number; y: number; z: number; vx: number; vy: number; vz: number }
+export type Point = { x: number; y: number; z?: number }
 
 const NET_BOUNCE = 0.35
 const TAPE_BOUNCE = 0.3
@@ -12,7 +13,7 @@ const TAPE_NUDGE_VX = 0.8
 export function stepBall(b: Ball, dt: number): { ball: Ball; hitNet: boolean; landed: boolean } {
   const { gravity: g, ballRadius: r, netHeight } = BALANCE
   const vy = b.vy - g * dt
-  const next: Ball = { x: b.x + b.vx * dt, y: b.y + vy * dt, vx: b.vx, vy }
+  const next: Ball = { x: b.x + b.vx * dt, y: b.y + vy * dt, z: b.z + b.vz * dt, vx: b.vx, vy, vz: b.vz }
   let hitNet = false
 
   const crossed = (b.x < 0 && next.x >= 0) || (b.x > 0 && next.x <= 0)
@@ -38,12 +39,12 @@ export function stepBall(b: Ball, dt: number): { ball: Ball; hitNet: boolean; la
     next.y = r
     landed = true
   }
-  if (Math.abs(next.x) > BALANCE.worldLimit) landed = true
+  if (Math.abs(next.x) > BALANCE.worldLimit || Math.abs(next.z) > BALANCE.worldLimit) landed = true
   return { ball: next, hitNet, landed }
 }
 
-export function positionAt(b: Ball, t: number): Point {
-  return { x: b.x + b.vx * t, y: b.y + b.vy * t - 0.5 * BALANCE.gravity * t * t }
+export function positionAt(b: Ball, t: number): { x: number; y: number; z: number } {
+  return { x: b.x + b.vx * t, y: b.y + b.vy * t - 0.5 * BALANCE.gravity * t * t, z: b.z + b.vz * t }
 }
 
 /** Tempo até a bola descer pela altura h (raiz maior), ou null se nunca chegar. */
@@ -56,26 +57,27 @@ export function timeToHeight(b: Ball, h: number): number | null {
 }
 
 /** Onde e quando o centro da bola chega ao chão. Ignora a rede. */
-export function predictLanding(b: Ball): { x: number; t: number } {
+export function predictLanding(b: Ball): { x: number; z: number; t: number } {
   const t = timeToHeight(b, BALANCE.ballRadius) ?? 0
-  return { x: b.x + b.vx * t, t }
+  return { x: b.x + b.vx * t, z: b.z + b.vz * t, t }
 }
 
 /** Velocidade para ir de `from` até `to` passando por um ápice ou num tempo dado. */
-export function launchVelocity(from: Point, to: Point, mode: { apex: number } | { time: number }): { vx: number; vy: number } {
+export function launchVelocity(from: Point, to: Point, mode: { apex: number } | { time: number }): { vx: number; vy: number; vz: number } {
   const g = BALANCE.gravity
   const dx = to.x - from.x
+  const dz = (to.z ?? 0) - (from.z ?? 0)
   if ('time' in mode) {
     const t = mode.time
-    return { vx: dx / t, vy: (to.y - from.y + 0.5 * g * t * t) / t }
+    return { vx: dx / t, vy: (to.y - from.y + 0.5 * g * t * t) / t, vz: dz / t }
   }
   const apex = Math.max(mode.apex, from.y + 0.1, to.y + 0.1)
   const vy = Math.sqrt(2 * g * (apex - from.y))
   const tTotal = vy / g + Math.sqrt((2 * (apex - to.y)) / g)
-  return { vx: dx / tTotal, vy }
+  return { vx: dx / tTotal, vy, vz: dz / tTotal }
 }
 
 /** Quique da bola morta depois do ponto (só visual). */
 export function bounceDead(b: Ball): Ball {
-  return { x: b.x, y: BALANCE.ballRadius, vx: b.vx * 0.6, vy: Math.abs(b.vy) * 0.4 }
+  return { x: b.x, y: BALANCE.ballRadius, z: b.z, vx: b.vx * 0.6, vy: Math.abs(b.vy) * 0.4, vz: b.vz * 0.6 }
 }

@@ -25,7 +25,7 @@ export function executeTouch(
   const shark = action === 'sharkataque'
   const origin = { x: from.x, y: from.y + (shark ? BALANCE.sharkExtraHeight : 0) }
   const v = outgoing({ action, team, from: origin, aim, precise }, s.rng)
-  s.ball = { ...origin, vx: v.vx, vy: v.vy }
+  s.ball = { ...origin, z: s.ball.z, vx: v.vx, vy: v.vy, vz: v.vz }
   s.touch = registerTouch(s.touch, plan.athleteId)
 
   s.meter[team] = addMeter(s.meter[team], BALANCE.meter.toque)

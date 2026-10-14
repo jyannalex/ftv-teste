@@ -156,7 +156,7 @@ export function createMatch(config: MatchConfig): MatchState {
     time: 0,
     phase: 'saque',
     phaseT: 0,
-    ball: { x: 0, y: 0, vx: 0, vy: 0 },
+    ball: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 },
     athletes,
     score: initialScore(),
     touch: { team: null, count: 0, lastAthlete: null },
@@ -187,7 +187,7 @@ function setupServe(s: MatchState): void {
     setAction(a, 'parado')
   }
   const sign = sideSign(s.score.servingTeam)
-  s.ball = { x: sign * (BALANCE.serveX - 0.3), y: 0.3, vx: 0, vy: 0 }
+  s.ball = { x: sign * (BALANCE.serveX - 0.3), y: 0.3, z: 0, vx: 0, vy: 0, vz: 0 }
   s.touch = { team: null, count: 0, lastAthlete: null }
   s.lastAttack = null
   s.plan = null
@@ -249,7 +249,7 @@ function serve(s: MatchState, aim: Aim, events: MatchEvent[]): void {
 }
 
 function endRally(s: MatchState, events: MatchEvent[]): void {
-  const { winner, reason } = resolveLanding(s.ball.x, s.touch)
+  const { winner, reason } = resolveLanding(s.ball.x, s.ball.z, s.touch)
   s.score = awardPoint(s.score, winner)
   s.meter[winner] = Math.min(BALANCE.meter.max, s.meter[winner] + BALANCE.meter.ponto)
   s.plan = null
@@ -300,7 +300,7 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
     }
     case 'ponto': {
       const r = stepBall(s.ball, gdt)
-      s.ball = r.landed ? (Math.abs(r.ball.vy) > 0.5 ? bounceDead(r.ball) : { ...r.ball, vx: 0, vy: 0 }) : r.ball
+      s.ball = r.landed ? (Math.abs(r.ball.vy) > 0.5 ? bounceDead(r.ball) : { ...r.ball, vx: 0, vy: 0, vz: 0 }) : r.ball
       if (s.phaseT >= BALANCE.pointPauseSec) setupServe(s)
       break
     }

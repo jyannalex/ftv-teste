@@ -14,16 +14,21 @@ describe('rules', () => {
   })
 
   it('bola no chão dentro: ponto de quem não é dono do lado', () => {
-    expect(resolveLanding(4, { team: 0, count: 3, lastAthlete: 1 })).toEqual({ winner: 0, reason: 'chao' })
+    expect(resolveLanding(4, 0, { team: 0, count: 3, lastAthlete: 1 })).toEqual({ winner: 0, reason: 'chao' })
   })
 
   it('bola no próprio lado depois de 3 toques é falta', () => {
-    expect(resolveLanding(-2, { team: 0, count: 3, lastAthlete: 0 })).toEqual({ winner: 1, reason: 'falta' })
+    expect(resolveLanding(-2, 0, { team: 0, count: 3, lastAthlete: 0 })).toEqual({ winner: 1, reason: 'falta' })
   })
 
   it('bola fora: ponto de quem não tocou por último', () => {
-    expect(resolveLanding(10.5, { team: 0, count: 2, lastAthlete: 1 })).toEqual({ winner: 1, reason: 'fora' })
-    expect(resolveLanding(-9.5, { team: 0, count: 1, lastAthlete: 0 })).toEqual({ winner: 1, reason: 'fora' })
+    expect(resolveLanding(10.5, 0, { team: 0, count: 2, lastAthlete: 1 })).toEqual({ winner: 1, reason: 'fora' })
+    expect(resolveLanding(-9.5, 0, { team: 0, count: 1, lastAthlete: 0 })).toEqual({ winner: 1, reason: 'fora' })
+  })
+
+  it('bola fora pela lateral: ponto de quem não tocou por último', () => {
+    expect(resolveLanding(-4, 4.8, { team: 1, count: 1, lastAthlete: 2 })).toEqual({ winner: 0, reason: 'fora' })
+    expect(resolveLanding(3, -4.4, { team: 0, count: 1, lastAthlete: 0 })).toEqual({ winner: 0, reason: 'chao' })
   })
 
   it('quem saca mantém o saque; quem recupera alterna o sacador', () => {

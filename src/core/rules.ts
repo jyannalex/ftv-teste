@@ -24,8 +24,8 @@ export function registerTouch(t: TouchState, athleteId: number): TouchState {
 
 export type PointReason = 'chao' | 'fora' | 'falta'
 
-export function resolveLanding(x: number, t: TouchState): { winner: Side; reason: PointReason } {
-  if (Math.abs(x) <= BALANCE.halfCourt) {
+export function resolveLanding(x: number, z: number, t: TouchState): { winner: Side; reason: PointReason } {
+  if (Math.abs(x) <= BALANCE.halfCourt && Math.abs(z) <= BALANCE.halfWidth) {
     const owner = sideOf(x)
     return { winner: other(owner), reason: t.team === owner && t.count >= 3 ? 'falta' : 'chao' }
   }

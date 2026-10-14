@@ -16,7 +16,7 @@ export function aimFromMove(team: Side, move: -1 | 0 | 1): Aim {
 export type OutgoingRequest = { action: TouchAction; team: Side; from: Point; aim?: Aim; precise?: boolean }
 
 /** Trajetória de saída de um toque: velocidade da bola e onde ela deve cair. */
-export function outgoing(req: OutgoingRequest, rng: Rng): { vx: number; vy: number; targetX: number } {
+export function outgoing(req: OutgoingRequest, rng: Rng): { vx: number; vy: number; vz: number; targetX: number } {
   const s = sideSign(req.team)
   const { netHeight } = BALANCE
   const a = BALANCE.attack
