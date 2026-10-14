@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestAim, createAI, skillParams } from '../../src/core/ai'
+import { createAI, skillParams } from '../../src/core/ai'
 import { createMatch, IDLE, type MatchEvent, matchConfig, step } from '../../src/core/match'
 import { createRng } from '../../src/core/rng'
 import { setWinner } from '../../src/core/rules'
@@ -48,8 +48,8 @@ describe('IA arcade', () => {
   })
 
   it('IA com skill 1 escolhe Pingo contra defesa recuada e forte contra defesa adiantada', () => {
-    // Time 0 humano: o controlado (atleta 0) fica a 5 m e o parceiro vai sozinho para o fundo (6,5 m).
-    const deep = stateWithAttackPlan(1, [-5, -6.5], 0)
+    // Time 0 humano: os dois no fundo; o parceiro não chega à base (5 m) antes do ataque.
+    const deep = stateWithAttackPlan(1, [-8.5, -9], 0)
     expect(firstTouchOf(deep, createAI(1, 1, 'equilibrado', createRng(1)))).toMatchObject({ action: 'pingo' })
     const close = stateWithAttackPlan(1, [-1.5, -2.5], 0)
     expect(firstTouchOf(close, createAI(1, 1, 'equilibrado', createRng(1)))).toMatchObject({ action: 'forte' })
@@ -59,10 +59,5 @@ describe('IA arcade', () => {
     const s = incomingBall(6)
     const t = firstTouchOf(s, createAI(1, 1, 'equilibrado', createRng(2)))
     expect(t).toMatchObject({ action: 'passe' })
-  })
-
-  it('bestAim escolhe fundo quando os defensores estão na frente e curto quando estão no fundo', () => {
-    expect(bestAim([1.5, 3])).toBe('fundo')
-    expect(bestAim([6.5, 8])).toBe('curto')
   })
 })

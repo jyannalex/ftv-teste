@@ -275,7 +275,7 @@ export class MatchScene extends Phaser.Scene {
   /** Alvo da mira do jogador: no saque (segurando FORTE) e na câmera lenta. */
   private aimX(): number | null {
     const s = this.state
-    if (s.slowMo) return BALANCE.aimDepth[s.slowMo.aim]
+    if (s.slowMo) return BALANCE.aimDepth[s.slowMo.aim.aim]
     const b = s.buttons[0]
     if (s.phase === 'saque' && s.score.servingTeam === 0 && b.forte && b.forteDownAt !== null)
       return BALANCE.serveDepth[aimFromMove(0, this.lastHuman.move)]

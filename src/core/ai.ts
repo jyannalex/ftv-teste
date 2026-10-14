@@ -3,7 +3,7 @@ import { DT, IDLE, type MatchState, type TeamInput } from './match'
 import type { Rng } from './rng'
 import { type Side, sideSign } from './rules'
 import { isMeterFull } from './specialMeter'
-import type { Aim } from './touch'
+import type { Aim, AimTarget, Lane } from './touch'
 
 export type Personality = 'equilibrado' | 'gostaDePingo' | 'bateForte' | 'paredao'
 
@@ -31,25 +31,29 @@ export function skillParams(skill: number): SkillParams {
 }
 
 const AIMS: Aim[] = ['curto', 'meio', 'fundo']
+const LANES: Lane[] = [-1, 0, 1]
 
-/** Mira para a profundidade mais longe dos dois defensores (distâncias da rede). */
-export function bestAim(defenderDists: number[]): Aim {
-  let best: Aim = 'meio'
+/** Alvo (profundidade × faixa) mais longe dos defensores (d: distância da rede, z). */
+export function bestTarget(defenders: { d: number; z: number }[]): AimTarget {
+  let best: AimTarget = { aim: 'meio', lane: 0 }
   let bestGap = -1
-  for (const aim of AIMS) {
-    const gap = Math.min(...defenderDists.map((d) => Math.abs(d - BALANCE.aimDepth[aim])))
-    if (gap > bestGap) {
-      bestGap = gap
-      best = aim
+  for (const aim of AIMS)
+    for (const lane of LANES) {
+      const gap = Math.min(...defenders.map((p) => Math.hypot(p.d - BALANCE.aimDepth[aim], p.z - lane * BALANCE.laneZ)))
+      if (gap > bestGap) {
+        bestGap = gap
+        best = { aim, lane }
+      }
     }
-  }
   return best
 }
+
+const randomTarget = (rng: Rng): AimTarget => ({ aim: AIMS[Math.floor(rng.next() * 3)], lane: LANES[Math.floor(rng.next() * 3)] })
 
 const PINGO_BIAS: Record<Personality, number> = { equilibrado: 0, gostaDePingo: 0.25, bateForte: -0.2, paredao: 0 }
 const RANDOM_PINGO_CHANCE = 0.3
 /** Defensor mais perto da rede além disso: o Pingo é o ataque certo. */
-const DEEP_DEFENSE = 4.5
+const DEEP_DEFENSE = 6.0
 const SERVE_WAIT_SEC = 1
 const SERVE_HOLD_SEC = 0.1
 /** Antecedência do aperto do ataque (s). */
@@ -64,7 +68,7 @@ type Decision = {
   defenseAt: number | null
   defensePressed: boolean
   attackButton: 'forte' | 'pingo' | 'shark'
-  aim: Aim
+  aim: AimTarget
 }
 
 /** Anda num eixo até o alvo e freia a tempo: para quando a distância de frenagem cobre o que falta. */
@@ -80,19 +84,22 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
   const p = skillParams(skill)
   const sign = sideSign(team)
   let decision: Decision | null = null
-  let serveAim: Aim | null = null
+  let serveAim: AimTarget | null = null
 
-  /** Direção na tela que dá essa mira para este time. */
-  const moveForAim = (aim: Aim): -1 | 0 | 1 => (aim === 'meio' ? 0 : aim === 'curto' ? (-sign as -1 | 1) : (sign as -1 | 1))
+  /** Direções na tela que dão essa mira para este time. */
+  const inputForAim = (t: AimTarget): Pick<TeamInput, 'move' | 'moveZ'> => ({
+    move: t.aim === 'meio' ? 0 : t.aim === 'curto' ? (-sign as -1 | 1) : (sign as -1 | 1),
+    moveZ: t.lane,
+  })
 
   const chooseAttack = (s: MatchState): Pick<Decision, 'attackButton' | 'aim'> => {
-    const defenders = s.athletes.filter((a) => a.team !== team).map((a) => Math.abs(a.x))
+    const defenders = s.athletes.filter((a) => a.team !== team).map((a) => ({ d: Math.abs(a.x), z: a.z }))
     const reads = rng.next() < p.readChance
-    const deep = Math.min(...defenders) > DEEP_DEFENSE
+    const deep = Math.min(...defenders.map((d) => d.d)) > DEEP_DEFENSE
     const pingoChance = (reads ? (deep ? 1 : 0) : RANDOM_PINGO_CHANCE) + PINGO_BIAS[personality]
-    const aim = rng.next() < p.readChance ? bestAim(defenders) : AIMS[Math.floor(rng.next() * 3)]
+    const aim = rng.next() < p.readChance ? bestTarget(defenders) : randomTarget(rng)
     if (isMeterFull(s.meter[team])) return { attackButton: 'shark', aim }
-    if (rng.next() < pingoChance) return { attackButton: 'pingo', aim: 'meio' }
+    if (rng.next() < pingoChance) return { attackButton: 'pingo', aim: { aim: 'meio', lane: aim.lane } }
     return { attackButton: 'forte', aim }
   }
 
@@ -104,11 +111,11 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
       if (s.phase === 'saque') {
         decision = null
         if (s.score.servingTeam !== team) return IDLE
-        serveAim ??= AIMS[Math.floor(rng.next() * 3)]
+        serveAim ??= randomTarget(rng)
         const t = s.phaseT + DT
         if (t < SERVE_WAIT_SEC) return IDLE
         if (t < SERVE_WAIT_SEC + SERVE_HOLD_SEC) return { ...IDLE, forte: true }
-        return { ...IDLE, move: moveForAim(serveAim) }
+        return { ...IDLE, ...inputForAim(serveAim) }
       }
       serveAim = null
 
@@ -116,10 +123,13 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
       if (s.phase !== 'rally' || !plan || plan.team !== team) return IDLE
       const key = `${plan.athleteId}:${plan.createdAt.toFixed(4)}`
       if (decision?.key !== key) {
-        const error = rng.normal(0, p.posError * (personality === 'paredao' ? 0.7 : 1))
+        // Erro por eixo: no plano, o erro total fica igual a posError.
+        const base = p.posError * (personality === 'paredao' ? 0.7 : 1)
+        const sd = (base + (plan.incoming === 'forte' ? BALANCE.vsForte.aiExtraError : 0)) / Math.SQRT2
+        const error = rng.normal(0, sd)
         const defenseAt = plan.incoming && plan.touchIndex === 1 ? plan.tIdeal + rng.normal(0, p.defenseSigma) : null
-        const errorZ = rng.normal(0, p.posError * (personality === 'paredao' ? 0.7 : 1))
-        decision = { key, posError: error, posErrorZ: errorZ, attackPressed: false, attackButton: 'forte', aim: 'meio', defenseAt, defensePressed: false }
+        const errorZ = rng.normal(0, sd)
+        decision = { key, posError: error, posErrorZ: errorZ, attackPressed: false, attackButton: 'forte', aim: { aim: 'meio', lane: 0 }, defenseAt, defensePressed: false }
       }
       const d = decision
       const athlete = s.athletes[plan.athleteId]
@@ -145,7 +155,7 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
           Object.assign(d, chooseAttack(s))
           input[d.attackButton] = true
         }
-        if (d.attackPressed && now >= plan.tIdeal - 1.5 * DT) input.move = moveForAim(d.aim)
+        if (d.attackPressed && now >= plan.tIdeal - 1.5 * DT) Object.assign(input, inputForAim(d.aim))
       }
       return input
     },

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { planContact } from '../../src/core/contact'
-import { IDLE, type MatchEvent, type MatchState, step } from '../../src/core/match'
-import { incomingBall, teamInputs } from './helpers'
+import { createMatch, IDLE, type MatchEvent, type MatchState, matchConfig, step } from '../../src/core/match'
+import { createRng } from '../../src/core/rng'
+import { outgoing } from '../../src/core/touch'
+import { incomingBall, simulate, standStill, teamInputs } from './helpers'
 
 type Toque = Extract<MatchEvent, { type: 'toque' }>
 
@@ -101,5 +103,21 @@ describe('trocar o atleta controlado (W)', () => {
     step(s, teamInputs(1, { troca: true }))
     expect(s.controlled).toBe(first ^ 1)
     expect(s.plan!.athleteId).toBe(first ^ 1)
+  })
+})
+
+describe('bola que toca o chão para ali', () => {
+  it('forte não defendido cai dentro: ponto "chão", não "fora" (a carência da defesa não arrasta a bola)', () => {
+    const s = createMatch(matchConfig({ humanTeam: null }))
+    s.phase = 'rally'
+    s.touch = { team: 1, count: 3, lastAthlete: 3 }
+    const from = { x: 1.4, y: 3.2, z: 0 }
+    const v = outgoing({ action: 'forte', team: 1, from, aim: 'fundo', lane: 0, precise: true }, createRng(1))
+    s.ball = { ...from, vx: v.vx, vy: v.vy, vz: v.vz }
+    s.lastAttack = { team: 1, kind: 'forte' }
+    for (const a of s.athletes.filter((a) => a.team === 0)) a.z = -6
+    s.plan = planContact(s)
+    const ev = simulate(s, standStill, 300, 'ponto')
+    expect(ev).toContainEqual({ type: 'ponto', winner: 1, reason: 'chao' })
   })
 })

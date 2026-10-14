@@ -1,9 +1,9 @@
 import { BALANCE } from '../data/balance'
 import { planeDist, reachOf, replan, setAction } from './contact'
 import type { AthleteAction, ContactPlan, MatchEvent, MatchState, TeamInput } from './match'
-import { registerTouch } from './rules'
+import { partner, registerTouch } from './rules'
 import { addMeter, isMeterFull } from './specialMeter'
-import { type Aim, aimFromMove, outgoing, type TouchAction } from './touch'
+import { type AimTarget, aimFromInput, outgoing, type TouchAction } from './touch'
 
 export type Edges = { forteDown: boolean; forteUp: boolean; pingoDown: boolean; sharkDown: boolean; trocaDown: boolean }
 
@@ -16,16 +16,18 @@ export function executeTouch(
   s: MatchState,
   plan: ContactPlan,
   action: TouchAction,
-  aim: Aim,
+  target: AimTarget,
   events: MatchEvent[],
-  from = { x: plan.x, y: plan.y },
+  from = { x: plan.x, y: plan.y, z: plan.z },
   precise = false,
 ): void {
   const team = plan.team
   const shark = action === 'sharkataque'
-  const origin = { x: from.x, y: from.y + (shark ? BALANCE.sharkExtraHeight : 0) }
-  const v = outgoing({ action, team, from: origin, aim, precise }, s.rng)
-  s.ball = { ...origin, z: s.ball.z, vx: v.vx, vy: v.vy, vz: v.vz }
+  const origin = { x: from.x, y: from.y + (shark ? BALANCE.sharkExtraHeight : 0), z: from.z }
+  // Passe e levantada sobem para o parceiro, que vai fazer o próximo toque.
+  const toZ = s.athletes[partner(plan.athleteId)].z
+  const v = outgoing({ action, team, from: origin, aim: target.aim, lane: target.lane, toZ, precise }, s.rng)
+  s.ball = { ...origin, vx: v.vx, vy: v.vy, vz: v.vz }
   s.touch = registerTouch(s.touch, plan.athleteId)
 
   s.meter[team] = addMeter(s.meter[team], BALANCE.meter.toque)
@@ -63,15 +65,15 @@ function slowMoAttack(s: MatchState, plan: ContactPlan, inputs: [TeamInput, Team
     athlete.vx = 0
     athlete.vz = 0
     setAction(athlete, 'cabeca')
-    s.slowMo = { athleteId: plan.athleteId, aim: aimFromMove(team, inputs[team].move) }
+    s.slowMo = { athleteId: plan.athleteId, aim: aimFromInput(team, inputs[team]) }
     // Segue: um aperto neste mesmo passo já vale como escolha.
   }
-  const aim = aimFromMove(team, inputs[team].move)
+  const aim = aimFromInput(team, inputs[team])
   s.slowMo.aim = aim
   const e = edges[team]
   const choice: TouchAction | null =
     e.sharkDown && isMeterFull(s.meter[team]) ? 'sharkataque' : e.forteDown ? 'forte' : e.pingoDown ? 'pingo' : null
-  if (choice) executeTouch(s, plan, choice, aim, events, { x: s.ball.x, y: s.ball.y })
+  if (choice) executeTouch(s, plan, choice, aim, events, { x: s.ball.x, y: s.ball.y, z: s.ball.z })
   else if (s.time >= plan.tIdeal) executeTouch(s, plan, 'fraco', aim, events)
   // A direção da mira continua segurada depois do ataque: não faz o atleta correr.
   if (!s.slowMo) s.buttons[team].moveLocked = true
@@ -97,7 +99,7 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
 
   if (planeDist(s.athletes[plan.athleteId], plan) <= reachOf(s, plan.athleteId)) {
     const action: TouchAction = plan.touchIndex === 3 ? (plan.choice ?? 'fraco') : AUTO[plan.touchIndex]
-    executeTouch(s, plan, action, aimFromMove(team, inputs[team].move), events)
+    executeTouch(s, plan, action, aimFromInput(team, inputs[team]), events)
     return
   }
   events.push({ type: 'perdeu', athleteId: plan.athleteId })
@@ -118,7 +120,7 @@ function defend(s: MatchState, plan: ContactPlan, inputs: [TeamInput, TeamInput]
     const perfeita = Math.abs(offset) <= def.perfect
     if (perfeita) s.meter[plan.team] = addMeter(s.meter[plan.team], BALANCE.meter.defesaPerfeita)
     events.push({ type: 'defesa', athleteId: plan.athleteId, perfeita })
-    executeTouch(s, plan, 'passe', aimFromMove(plan.team, inputs[plan.team].move), events, { x: plan.x, y: plan.y }, perfeita)
+    executeTouch(s, plan, 'passe', aimFromInput(plan.team, inputs[plan.team]), events, undefined, perfeita)
     return
   }
   if (s.time > plan.tIdeal + def.window) {

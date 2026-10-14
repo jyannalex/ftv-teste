@@ -15,7 +15,7 @@ import {
   sideSign,
   type TouchState,
 } from './rules'
-import { type Aim, aimFromMove, type TouchAction } from './touch'
+import { type AimTarget, aimFromInput, type TouchAction } from './touch'
 
 export { setAction }
 
@@ -127,7 +127,7 @@ export type MatchState = {
   lastAttack: { team: Side; kind: 'forte' | 'pingo' | 'shark' } | null
   plan: ContactPlan | null
   /** Câmera lenta do ataque do jogador. */
-  slowMo: { athleteId: number; aim: Aim } | null
+  slowMo: { athleteId: number; aim: AimTarget } | null
   /** Atleta sob controle do humano (marcador amarelo). */
   controlled: number | null
   winner: Side | null
@@ -249,11 +249,11 @@ function trackButtons(s: MatchState, inputs: [TeamInput, TeamInput]): [Edges, Ed
   }) as [Edges, Edges]
 }
 
-function serve(s: MatchState, aim: Aim, events: MatchEvent[]): void {
+function serve(s: MatchState, target: AimTarget, events: MatchEvent[]): void {
   const team = s.score.servingTeam
   const sign = sideSign(team)
-  const target = -sign * BALANCE.serveDepth[aim]
-  const v = launchVelocity(s.ball, { x: target, y: BALANCE.ballRadius }, { apex: BALANCE.serve.apex })
+  const to = { x: -sign * BALANCE.serveDepth[target.aim], y: BALANCE.ballRadius, z: target.lane * BALANCE.laneZ }
+  const v = launchVelocity(s.ball, to, { apex: BALANCE.serve.apex })
   s.ball = { ...s.ball, ...v }
   const server = s.score.server
   // O saque conta como 3 toques: bola que não passa é falta de quem sacou.
@@ -298,8 +298,8 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
       const team = s.score.servingTeam
       const b = s.buttons[team]
       if (s.config.humanTeam !== team) switchControlled(s, edges)
-      if (edges[team].forteUp && b.forteDownAt !== null) serve(s, aimFromMove(team, inputs[team].move), events)
-      else if (s.phaseT >= BALANCE.autoServeSec) serve(s, 'meio', events)
+      if (edges[team].forteUp && b.forteDownAt !== null) serve(s, aimFromInput(team, inputs[team]), events)
+      else if (s.phaseT >= BALANCE.autoServeSec) serve(s, { aim: 'meio', lane: 0 }, events)
       break
     }
     case 'rally': {
@@ -312,7 +312,11 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
       switchControlled(s, edges)
       resolveContact(s, inputs, edges, events)
       updatePositions(s, inputs, gdt)
-      if (r.landed && !touchStillPossible(s)) endRally(s, events)
+      if (r.landed) {
+        // A bola que tocou o chão fica ali, mesmo na carência da defesa.
+        s.ball = { ...s.ball, vx: 0, vy: 0, vz: 0 }
+        if (!touchStillPossible(s)) endRally(s, events)
+      }
       break
     }
     case 'ponto': {
