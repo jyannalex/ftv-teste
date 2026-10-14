@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { BootScene } from './game/scenes/BootScene'
+import { MatchScene } from './game/scenes/MatchScene'
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -8,5 +9,6 @@ new Phaser.Game({
   height: 720,
   backgroundColor: '#87CEEB',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene],
+  input: { activePointers: 3 },
+  scene: [BootScene, MatchScene],
 })
