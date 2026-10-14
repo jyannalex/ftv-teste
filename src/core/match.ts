@@ -64,6 +64,8 @@ export type Athlete = {
   id: number
   team: Side
   x: number
+  /** Velocidade horizontal (m/s). */
+  vx: number
   /** Altura do pulo (0 no chão). */
   y: number
   targetX: number
@@ -141,6 +143,7 @@ export function createMatch(config: MatchConfig): MatchState {
     id,
     team: (id < 2 ? 0 : 1) as Side,
     x: 0,
+    vx: 0,
     y: 0,
     targetX: 0,
     action: 'parado' as AthleteAction,
@@ -178,6 +181,7 @@ function setupServe(s: MatchState): void {
     if (a.id === server) a.x = sign * BALANCE.serveX
     else if (a.id === partner(server)) a.x = sign * BALANCE.basePos.front
     a.targetX = a.x
+    a.vx = 0
     a.y = 0
     setAction(a, 'parado')
   }

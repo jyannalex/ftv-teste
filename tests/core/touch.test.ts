@@ -63,3 +63,18 @@ describe('touch arcade', () => {
     }
   })
 })
+
+describe('mais tempo no ar', () => {
+  const flight = (action: 'passe' | 'levantada', from: { x: number; y: number }) => {
+    const v = outgoing({ action, team: 0, from, quality: 'normal' }, createRng(1))
+    const g = BALANCE.gravity
+    return (v.vy + Math.sqrt(v.vy * v.vy + 2 * g * (from.y - BALANCE.ballRadius))) / g
+  }
+  it('recepção de chapa e levantada ficam mais de 2 s no ar', () => {
+    expect(flight('passe', { x: -6, y: 0.45 })).toBeGreaterThan(2)
+    expect(flight('levantada', { x: -3, y: 0.45 })).toBeGreaterThan(2)
+  })
+  it('contato do ataque é a 3,2 m', () => {
+    expect(BALANCE.contact.cabeca).toBe(3.2)
+  })
+})

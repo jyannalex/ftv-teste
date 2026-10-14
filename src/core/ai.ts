@@ -123,7 +123,10 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
       if (now >= plan.createdAt + reaction) {
         const target = plan.x + sign * 0.3 + d.posError
         const gap = target - athlete.x
-        if (Math.abs(gap) > ARRIVE_TOLERANCE) input.move = gap > 0 ? 1 : -1
+        // Freia a tempo: para de andar quando a distância de frenagem cobre o que falta.
+        const movingToward = Math.sign(athlete.vx) === Math.sign(gap)
+        const stopDist = movingToward ? (athlete.vx * athlete.vx) / (2 * BALANCE.move.decel) : 0
+        if (Math.abs(gap) > ARRIVE_TOLERANCE + stopDist) input.move = gap > 0 ? 1 : -1
       }
 
       // Peixinho quando não vai dar para chegar.

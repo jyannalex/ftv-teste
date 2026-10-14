@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { planContact } from '../../src/core/contact'
+import { createAI } from '../../src/core/ai'
 import { IDLE, type MatchEvent, step } from '../../src/core/match'
+import { createRng } from '../../src/core/rng'
 import { BALANCE } from '../../src/data/balance'
 import { incomingBall, simulate, standStill, teamInputs } from './helpers'
 
@@ -23,11 +25,13 @@ describe('partida: toques automáticos (arcade)', () => {
     expect(s.meter[1]).toBe(BALANCE.meter.toque)
   })
 
-  it('três toques automáticos com ajuda: passe → levantada → fraco, sem atleta repetido', () => {
-    const s = incomingBall(4, { humanTeam: 1 })
-    const ev = simulate(s, standStill, 900, 'ponto')
+  it('três toques com a IA se posicionando: passe → levantada → ataque, sem atleta repetido', () => {
+    const s = incomingBall(4)
+    const ai = createAI(1, 1, 'equilibrado', createRng(7))
+    const ev = simulate(s, (st) => [IDLE, ai.think(st)], 900, 'ponto')
     const t = toques(ev).filter((e) => e.athleteId >= 2)
-    expect(t.map((e) => e.action).slice(0, 3)).toEqual(['passe', 'levantada', 'fraco'])
+    expect(t.map((e) => e.action).slice(0, 2)).toEqual(['passe', 'levantada'])
+    expect(['forte', 'pingo', 'fraco', 'sharkataque']).toContain(t[2].action)
     for (let k = 1; k < 3; k++) expect(t[k].athleteId).not.toBe(t[k - 1].athleteId)
   })
 
@@ -92,15 +96,43 @@ describe('partida: toques automáticos (arcade)', () => {
     expect(s.meter[1]).toBe(BALANCE.meter.toque + BALANCE.meter.defesaForte)
   })
 
-  it('controlado com move=+1 anda 5 m/s; com move=0 e designado, a ajuda puxa a 2,8 m/s', () => {
+  it('sem entrada o controlado fica parado (sem ajuda automática)', () => {
     const s = incomingBall(4, { humanTeam: 1 })
     const id = s.plan!.athleteId
     s.athletes[id].x = 8
-    const x0 = s.athletes[id].x
+    for (let i = 0; i < 30; i++) step(s, [IDLE, IDLE])
+    expect(s.athletes[id].x).toBe(8)
+  })
+
+  it('o parceiro sem controle fica onde está', () => {
+    const s = incomingBall(4, { humanTeam: 1 })
+    const other = s.plan!.athleteId ^ 1
+    s.athletes[other].x = 2.2
+    for (let i = 0; i < 60; i++) step(s, teamInputs(1, { move: -1 }))
+    expect(s.athletes[other].x).toBe(2.2)
+  })
+
+  it('acelera até 5 m/s em ~0,15 s e freia em ~0,1 s', () => {
+    const s = incomingBall(4, { humanTeam: 1 })
+    const id = s.plan!.athleteId
+    s.athletes[id].x = 8
     step(s, teamInputs(1, { move: -1 }))
-    expect(x0 - s.athletes[id].x).toBeCloseTo(BALANCE.move.manual / 60, 3)
-    const x1 = s.athletes[id].x
+    expect(Math.abs(s.athletes[id].vx)).toBeLessThan(BALANCE.move.manual)
+    for (let i = 0; i < 9; i++) step(s, teamInputs(1, { move: -1 }))
+    expect(s.athletes[id].vx).toBeCloseTo(-BALANCE.move.manual, 5)
+    for (let i = 0; i < 7; i++) step(s, [IDLE, IDLE])
+    expect(s.athletes[id].vx).toBe(0)
+  })
+
+  it('bola do outro lado: controla quem está mais perto do pouso (troca só com 1 m de folga)', () => {
+    const s = incomingBall(-4, { humanTeam: 1 }) // bola indo para o time 0
+    s.controlled = 2
+    s.athletes[2].x = 6
+    s.athletes[3].x = 5.5 // só 0,5 m mais perto da bola: não troca
     step(s, [IDLE, IDLE])
-    expect(Math.abs(s.athletes[id].x - x1)).toBeCloseTo(BALANCE.move.assist / 60, 3)
+    expect(s.controlled).toBe(2)
+    s.athletes[3].x = 4 // 2 m mais perto: troca
+    step(s, [IDLE, IDLE])
+    expect(s.controlled).toBe(3)
   })
 })

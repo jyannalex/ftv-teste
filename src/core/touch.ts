@@ -29,11 +29,11 @@ export function outgoing(req: OutgoingRequest, rng: Rng): { vx: number; vy: numb
   switch (req.action) {
     case 'passe':
       target = s * 3.0
-      mode = { apex: 3.8 }
+      mode = { apex: 5.0 }
       break
     case 'levantada':
       target = s * 1.0
-      mode = { apex: 3.6 }
+      mode = { apex: 4.8 }
       break
     case 'fraco':
       target = -s * a.fracoDepth

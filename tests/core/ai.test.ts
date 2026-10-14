@@ -48,9 +48,9 @@ describe('IA arcade', () => {
   })
 
   it('IA com skill 1 escolhe Pingo contra defesa recuada e forte contra defesa adiantada', () => {
-    const deep = stateWithAttackPlan(1, [-7, -6.5])
+    const deep = stateWithAttackPlan(1, [-7, -6.5], 0) // time 0 humano parado: a defesa fica onde está
     expect(firstTouchOf(deep, createAI(1, 1, 'equilibrado', createRng(1)))).toMatchObject({ action: 'pingo' })
-    const close = stateWithAttackPlan(1, [-1.5, -2.5])
+    const close = stateWithAttackPlan(1, [-1.5, -2.5], 0)
     expect(firstTouchOf(close, createAI(1, 1, 'equilibrado', createRng(1)))).toMatchObject({ action: 'forte' })
   })
 

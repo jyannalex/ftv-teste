@@ -47,7 +47,7 @@ export function stateWithAttackPlan(team: Side, defendersX: [number, number], hu
   const first = team * 2
   const attacker = first + 1
   s.touch = { team, count: 2, lastAthlete: first }
-  s.ball = { x: sign * 1.0, y: 4, vx: 0, vy: 0 }
+  s.ball = { x: sign * 1.0, y: 5, vx: 0, vy: 0 }
   s.athletes[first].x = sign * 3
   s.athletes[attacker].x = sign * 1.3
   const otherFirst = (1 - team) * 2

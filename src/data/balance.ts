@@ -12,8 +12,10 @@ export const BALANCE = {
   /** Além disso a bola é considerada caída (segurança contra bola perdida). */
   worldLimit: 30,
 
-  /** Velocidades (m/s): controle manual, ajuda automática e posicionamento base. */
-  move: { manual: 5, assist: 2.8, base: 4.5 },
+  /** Velocidades (m/s) e aceleração/frenagem (m/s²): controle manual e posicionamento base. */
+  move: { manual: 5, base: 4.5, accel: 33, decel: 50 },
+  /** Troca o atleta controlado (bola do outro lado) só se o outro estiver tanto mais perto (m). */
+  switchMargin: 1,
   /** Distância máxima até a bola para o toque automático. */
   reach: 0.7,
   /** Peixinho: alcance e intervalo do botão em volta do contato (s). */
@@ -40,7 +42,7 @@ export const BALANCE = {
   serve: { apex: 4.3 },
 
   /** Altura da bola no contato de cada parte do corpo (cabeça já com o pulo). */
-  contact: { chapa: 0.45, peito: 1.3, cabeca: 2.7 },
+  contact: { chapa: 0.45, peito: 1.3, cabeca: 3.2 },
   /** O pé do Sharkataque bate acima da cabeça. */
   sharkExtraHeight: 0.3,
   /** Posições base (distância da rede). */
