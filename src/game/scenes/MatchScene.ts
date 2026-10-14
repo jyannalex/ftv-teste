@@ -12,6 +12,7 @@ import { isMeterFull } from '../../core/specialMeter'
 import { AI_TEAMS, teamById } from '../../data/teams'
 import { type Audio, gameAudio } from '../audio/sound'
 import { type ButtonName, Controls } from '../input/controls'
+import { PointerRouter } from '../input/pointers'
 import { getSession } from '../session'
 import { createFixedStepper, type FixedStepper } from '../loop/fixedStep'
 import { type ArenaRuntime, drawArena } from '../render/arenas'
@@ -73,7 +74,7 @@ export class MatchScene extends Phaser.Scene {
   private pauseLayer?: Phaser.GameObjects.Container
   private endT = 0
   /** Qual botão cada dedo está segurando. */
-  private pointerButtons = new Map<number, ButtonName | -1 | 1>()
+  private pointers = new PointerRouter<ButtonName | -1 | 1>((t, down) => this.press(t, down))
   private sharkButton?: Phaser.GameObjects.Container
   private marks!: GroundMarks
   private slowFx!: SlowMoFx
@@ -94,7 +95,7 @@ export class MatchScene extends Phaser.Scene {
     this.endT = 0
     this.athleteViews = []
     this.controls.reset()
-    this.pointerButtons.clear()
+    this.pointers.clear()
   }
 
   create(): void {
@@ -219,7 +220,8 @@ export class MatchScene extends Phaser.Scene {
     })
     this.trail.update(s.ball)
     this.marks.update(this.landingX(), this.aimX(), dt)
-    if (s.slowMo) {
+    // Na pausa, os efeitos da câmera lenta não cobrem o menu.
+    if (s.slowMo && !this.paused) {
       const a = s.athletes[s.slowMo.athleteId]
       this.slowFx.show({ x: toScreenX(a.x), y: toScreenY(Math.max(1.3, s.ball.y - 0.9)) }, { x: toScreenX(s.ball.x), y: toScreenY(s.ball.y) }, dt)
     } else this.slowFx.hide()
@@ -351,12 +353,10 @@ export class MatchScene extends Phaser.Scene {
       const items: Phaser.GameObjects.GameObject[] = [c, this.add.text(0, -8, label, { fontFamily: FONT, fontSize: r > 50 ? '16px' : '26px', color: '#ffffff' }).setOrigin(0.5)]
       if (!touch) items.push(this.add.text(0, 16, key, { fontFamily: FONT, fontSize: '14px', color: '#ffffffaa' }).setOrigin(0.5))
       const box = this.add.container(x, y, items).setSize(r * 2, r * 2).setInteractive(new Phaser.Geom.Circle(r, r, r), Phaser.Geom.Circle.Contains)
-      box.on('pointerdown', (p: Phaser.Input.Pointer) => {
-        this.pointerButtons.set(p.id, target)
-        this.press(target, true)
-      })
-      // Dedo que sai do botão conta como soltar.
-      box.on('pointerout', (p: Phaser.Input.Pointer) => this.releasePointer(p))
+      box.on('pointerdown', (p: Phaser.Input.Pointer) => this.pointers.down(p.id, target))
+      // Dedo que desliza de um botão para outro troca o alvo; sair do botão conta como soltar.
+      box.on('pointerover', (p: Phaser.Input.Pointer) => this.pointers.over(p.id, target, p.isDown))
+      box.on('pointerout', (p: Phaser.Input.Pointer) => this.pointers.out(p.id, target))
       return box
     }
     make(80, 652, 46, '◀', '[A]', 0x37474f, -1)
@@ -364,23 +364,14 @@ export class MatchScene extends Phaser.Scene {
     make(1060, 652, 58, 'FORTE', '[J]', 0xc62828, 'forte')
     make(1190, 652, 58, 'PINGO', '[K]', 0x2e7d32, 'pingo')
     this.sharkButton = make(1125, 540, 44, '🦈', '[Espaço]', 0x00838f, 'shark').setVisible(false)
-    this.input.on('pointerup', (p: Phaser.Input.Pointer) => this.releasePointer(p))
-    this.input.on('gameout', () => {
-      this.pointerButtons.clear()
-      this.controls.reset()
-    })
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => this.pointers.up(p.id))
+    // Mouse/dedo saindo da tela solta só os botões dos dedos, não as teclas seguradas.
+    this.input.on('gameout', () => this.pointers.releaseAll())
   }
 
   private press(target: ButtonName | -1 | 1, down: boolean): void {
     if (target === -1 || target === 1) this.controls.setMove(target, down)
     else this.controls.setButton(target, down)
-  }
-
-  private releasePointer(p: Phaser.Input.Pointer): void {
-    const target = this.pointerButtons.get(p.id)
-    if (target === undefined) return
-    this.pointerButtons.delete(p.id)
-    this.press(target, false)
   }
 
   private createKeyboard(): void {
@@ -420,7 +411,7 @@ export class MatchScene extends Phaser.Scene {
     this.paused = paused
     this.controls.reset()
     cancelButtons(this.state, 0)
-    this.pointerButtons.clear()
+    this.pointers.clear()
     if (!paused) {
       this.pauseLayer?.destroy()
       this.pauseLayer = undefined

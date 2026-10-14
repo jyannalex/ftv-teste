@@ -97,3 +97,19 @@ describe('câmera lenta do ataque do jogador', () => {
     expect(sawSlow).toBe(false)
   })
 })
+
+describe('câmera lenta: correções da revisão final', () => {
+  it('apertar FORTE no exato passo em que a câmera lenta começa vale (não sai fraco)', () => {
+    const s = humanAttack()
+    const lead = 1.5 * 0.25
+    const tIdeal = s.plan!.tIdeal
+    let ev: MatchEvent[] = []
+    for (let i = 0; i < 300 && !ev.some((e) => e.type === 'toque'); i++) {
+      // Aperta no passo que vai cruzar tIdeal − lead (o passo do pulo).
+      const jumpStep = !s.slowMo && s.time + 1 / 60 >= tIdeal - lead
+      ev = step(s, teamInputs(0, { forte: jumpStep }))
+      if (jumpStep) expect(s.slowMo !== null || ev.some((e) => e.type === 'toque')).toBe(true)
+    }
+    expect(ev.find((e): e is Toque => e.type === 'toque')?.action).toBe('forte')
+  })
+})

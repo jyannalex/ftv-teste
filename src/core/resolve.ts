@@ -61,7 +61,7 @@ function slowMoAttack(s: MatchState, plan: ContactPlan, inputs: [TeamInput, Team
     athlete.x = plan.x
     setAction(athlete, 'cabeca')
     s.slowMo = { athleteId: plan.athleteId, aim: aimFromMove(team, inputs[team].move) }
-    return true
+    // Segue: um aperto neste mesmo passo já vale como escolha.
   }
   const aim = aimFromMove(team, inputs[team].move)
   s.slowMo.aim = aim
