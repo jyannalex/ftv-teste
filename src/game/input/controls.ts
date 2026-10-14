@@ -23,6 +23,7 @@ export class Controls {
   consume(): TeamInput {
     const input: TeamInput = {
       move: this.moves.length ? this.moves[this.moves.length - 1] : 0,
+      moveZ: 0,
       forte: this.down.forte || this.latched.forte,
       pingo: this.down.pingo || this.latched.pingo,
       shark: this.down.shark || this.latched.shark,

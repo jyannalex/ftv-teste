@@ -59,11 +59,19 @@ const ARRIVE_TOLERANCE = 0.1
 type Decision = {
   key: string
   posError: number
+  posErrorZ: number
   attackPressed: boolean
   defenseAt: number | null
   defensePressed: boolean
   attackButton: 'forte' | 'pingo' | 'shark'
   aim: Aim
+}
+
+/** Anda num eixo até o alvo e freia a tempo: para quando a distância de frenagem cobre o que falta. */
+function axisInput(gap: number, v: number): -1 | 0 | 1 {
+  const movingToward = Math.sign(v) === Math.sign(gap)
+  const stopDist = movingToward ? (v * v) / (2 * BALANCE.move.decel) : 0
+  return Math.abs(gap) > ARRIVE_TOLERANCE + stopDist ? (gap > 0 ? 1 : -1) : 0
 }
 
 export type AIController = { think(s: MatchState): TeamInput }
@@ -110,7 +118,8 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
       if (decision?.key !== key) {
         const error = rng.normal(0, p.posError * (personality === 'paredao' ? 0.7 : 1))
         const defenseAt = plan.incoming && plan.touchIndex === 1 ? plan.tIdeal + rng.normal(0, p.defenseSigma) : null
-        decision = { key, posError: error, attackPressed: false, attackButton: 'forte', aim: 'meio', defenseAt, defensePressed: false }
+        const errorZ = rng.normal(0, p.posError * (personality === 'paredao' ? 0.7 : 1))
+        decision = { key, posError: error, posErrorZ: errorZ, attackPressed: false, attackButton: 'forte', aim: 'meio', defenseAt, defensePressed: false }
       }
       const d = decision
       const athlete = s.athletes[plan.athleteId]
@@ -119,12 +128,8 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
       // Corre até o ponto de contato (com o erro sorteado), depois do tempo de reação.
       const reaction = p.reactionDelay + (plan.incoming === 'forte' ? BALANCE.vsForte.aiExtraReaction : 0)
       if (now >= plan.createdAt + reaction) {
-        const target = plan.x + sign * 0.3 + d.posError
-        const gap = target - athlete.x
-        // Freia a tempo: para de andar quando a distância de frenagem cobre o que falta.
-        const movingToward = Math.sign(athlete.vx) === Math.sign(gap)
-        const stopDist = movingToward ? (athlete.vx * athlete.vx) / (2 * BALANCE.move.decel) : 0
-        if (Math.abs(gap) > ARRIVE_TOLERANCE + stopDist) input.move = gap > 0 ? 1 : -1
+        input.move = axisInput(plan.x + sign * 0.3 + d.posError - athlete.x, athlete.vx)
+        input.moveZ = axisInput(plan.z + d.posErrorZ - athlete.z, athlete.vz)
       }
 
       // Defesa: aperta DEFENDER no tempo sorteado.

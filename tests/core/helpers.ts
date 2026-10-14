@@ -53,7 +53,7 @@ export function stateWithAttackPlan(team: Side, defendersX: [number, number], hu
   const otherFirst = (1 - team) * 2
   s.athletes[otherFirst].x = defendersX[0]
   s.athletes[otherFirst + 1].x = defendersX[1]
-  for (const a of s.athletes) a.targetX = a.x
+  for (const a of s.athletes) a.z = 0
   s.plan = planContact(s)
   if (humanTeam === team && s.plan) s.controlled = s.plan.athleteId
   return s
@@ -66,6 +66,7 @@ export function incomingBall(x: number, opts: { humanTeam?: Side | null; vx?: nu
   const team: Side = x < 0 ? 0 : 1
   s.touch = { team: team === 0 ? 1 : 0, count: 1, lastAthlete: team === 0 ? 2 : 0 }
   s.ball = { x, y: 5, z: 0, vx: opts.vx ?? 0, vy: 0, vz: 0 }
+  for (const a of s.athletes) a.z = 0
   s.plan = planContact(s)
   if (opts.humanTeam === team && s.plan) s.controlled = s.plan.athleteId
   return s

@@ -22,8 +22,10 @@ export { setAction }
 export const DT = 1 / 60
 
 export type TeamInput = {
-  /** Direção na tela: −1 esquerda, +1 direita. */
+  /** Direção na tela: −1 esquerda, +1 direita (eixo x). */
   move: -1 | 0 | 1
+  /** Direção na tela: −1 para o fundo, +1 para perto da câmera (eixo z). */
+  moveZ: -1 | 0 | 1
   /** Botão esquerdo (saque e ataque forte), segurado. */
   forte: boolean
   /** Botão direito (Pingo), segurado. */
@@ -33,7 +35,7 @@ export type TeamInput = {
   /** Trocar o atleta controlado (W), segurado. */
   troca: boolean
 }
-export const IDLE: TeamInput = { move: 0, forte: false, pingo: false, shark: false, troca: false }
+export const IDLE: TeamInput = { move: 0, moveZ: 0, forte: false, pingo: false, shark: false, troca: false }
 
 export type MatchConfig = {
   seed: number
@@ -65,11 +67,12 @@ export type Athlete = {
   id: number
   team: Side
   x: number
-  /** Velocidade horizontal (m/s). */
+  z: number
+  /** Velocidade no chão (m/s). */
   vx: number
+  vz: number
   /** Altura do pulo (0 no chão). */
   y: number
-  targetX: number
   action: AthleteAction
   /** Tempo desde o início da ação atual (segundos). */
   actionT: number
@@ -84,6 +87,8 @@ export type ButtonTrack = {
   fortePressAt: number | null
   /** Quando o botão esquerdo foi apertado e segue segurado; null se o aperto não vale (veio de antes). */
   forteDownAt: number | null
+  /** Direção segurada desde o saque/ataque não move o atleta até soltar. */
+  moveLocked: boolean
 }
 
 export type ContactPlan = {
@@ -93,6 +98,7 @@ export type ContactPlan = {
   kind: 'chapa' | 'peito' | 'cabeca'
   x: number
   y: number
+  z: number
   /** Tempo absoluto da partida em que a bola chega ao ponto de contato. */
   tIdeal: number
   createdAt: number
@@ -137,16 +143,17 @@ export type MatchEvent =
   | { type: 'ponto'; winner: Side; reason: PointReason }
   | { type: 'fimDeSet'; winner: Side }
 
-const freshButtons = (): ButtonTrack => ({ forte: false, pingo: false, shark: false, troca: false, fortePressAt: null, forteDownAt: null })
+const freshButtons = (): ButtonTrack => ({ forte: false, pingo: false, shark: false, troca: false, fortePressAt: null, forteDownAt: null, moveLocked: false })
 
 export function createMatch(config: MatchConfig): MatchState {
   const athletes: Athlete[] = [0, 1, 2, 3].map((id) => ({
     id,
     team: (id < 2 ? 0 : 1) as Side,
     x: 0,
+    z: 0,
     vx: 0,
+    vz: 0,
     y: 0,
-    targetX: 0,
     action: 'parado' as AthleteAction,
     actionT: 0,
   }))
@@ -177,17 +184,25 @@ function setupServe(s: MatchState): void {
   const server = s.score.server
   for (const a of s.athletes) {
     const sign = sideSign(a.team)
-    const isFront = a.id % 2 === 0
-    a.x = sign * (isFront ? BALANCE.basePos.front : BALANCE.basePos.back)
-    if (a.id === server) a.x = sign * BALANCE.serveX
-    else if (a.id === partner(server)) a.x = sign * BALANCE.basePos.front
-    a.targetX = a.x
+    const bp = BALANCE.basePos
+    const lane = a.id % 2 === 0 ? -1 : 1
+    a.x = sign * bp.defense
+    a.z = lane * bp.laneZ
+    if (a.id === server) {
+      a.x = sign * BALANCE.serveX
+      a.z = lane * bp.serveZ
+    } else if (a.id === partner(server)) {
+      a.x = sign * bp.front
+      a.z = lane * bp.laneZ
+    }
     a.vx = 0
+    a.vz = 0
     a.y = 0
     setAction(a, 'parado')
   }
   const sign = sideSign(s.score.servingTeam)
-  s.ball = { x: sign * (BALANCE.serveX - 0.3), y: 0.3, z: 0, vx: 0, vy: 0, vz: 0 }
+  const srv = s.athletes[server]
+  s.ball = { x: sign * (BALANCE.serveX - 0.3), y: 0.3, z: srv.z, vx: 0, vy: 0, vz: 0 }
   s.touch = { team: null, count: 0, lastAthlete: null }
   s.lastAttack = null
   s.plan = null
@@ -229,6 +244,7 @@ function trackButtons(s: MatchState, inputs: [TeamInput, TeamInput]): [Edges, Ed
     b.pingo = i.pingo
     b.shark = i.shark
     b.troca = i.troca
+    if (b.moveLocked && i.move === 0 && i.moveZ === 0) b.moveLocked = false
     return e
   }) as [Edges, Edges]
 }
@@ -243,6 +259,7 @@ function serve(s: MatchState, aim: Aim, events: MatchEvent[]): void {
   // O saque conta como 3 toques: bola que não passa é falta de quem sacou.
   s.touch = { team, count: 3, lastAthlete: server }
   setAction(s.athletes[server], 'saque')
+  s.buttons[team].moveLocked = true
   events.push({ type: 'saque', athleteId: server })
   setPhase(s, 'rally')
   replan(s)

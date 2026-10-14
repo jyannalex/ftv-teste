@@ -61,7 +61,7 @@ describe('partida: toques automáticos (arcade)', () => {
     const ev = simulate(s, standStill, 300, 'ponto')
     expect(ev).toContainEqual(expect.objectContaining({ type: 'ponto', reason: 'fora' }))
     // Ninguém do time 1 correu para fora da quadra atrás da bola.
-    for (const a of s.athletes.filter((a) => a.team === 1)) expect(a.x).toBeLessThanOrEqual(Math.max(x0[a.id], BALANCE.basePos.back) + 0.01)
+    for (const a of s.athletes.filter((a) => a.team === 1)) expect(a.x).toBeLessThanOrEqual(Math.max(x0[a.id], BALANCE.basePos.defense) + 0.01)
   })
 
   it('Sharkataque não é defendido: o outro time não planeja toque', () => {
@@ -101,17 +101,6 @@ describe('partida: toques automáticos (arcade)', () => {
     s.athletes[other].x = 6
     for (let i = 0; i < 100; i++) step(s, teamInputs(1, { move: 0 }))
     expect(s.athletes[other].x).toBeCloseTo(BALANCE.basePos.support, 1)
-  })
-
-  it('na defesa, o parceiro ocupa a posição que o controlado deixou livre', () => {
-    const s = incomingBall(-4, { humanTeam: 1 }) // bola indo para o time 0
-    s.controlled = 2
-    s.athletes[2].x = 7 // controlado no fundo
-    s.athletes[3].x = 8.5
-    s.ball.y = 12
-    s.plan = planContact(s)
-    for (let i = 0; i < 100; i++) step(s, [IDLE, IDLE])
-    expect(s.athletes[3].x).toBeCloseTo(BALANCE.basePos.front, 1)
   })
 
   it('acelera até 5 m/s em ~0,15 s e freia em ~0,1 s', () => {

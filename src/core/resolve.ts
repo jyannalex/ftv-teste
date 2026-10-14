@@ -1,5 +1,5 @@
 import { BALANCE } from '../data/balance'
-import { reachOf, replan, setAction } from './contact'
+import { planeDist, reachOf, replan, setAction } from './contact'
 import type { AthleteAction, ContactPlan, MatchEvent, MatchState, TeamInput } from './match'
 import { registerTouch } from './rules'
 import { addMeter, isMeterFull } from './specialMeter'
@@ -57,8 +57,11 @@ function slowMoAttack(s: MatchState, plan: ContactPlan, inputs: [TeamInput, Team
   if (!s.slowMo) {
     if (plan.jumpChecked || s.time < plan.tIdeal - slowMoLead(s)) return false
     plan.jumpChecked = true
-    if (Math.abs(athlete.x - plan.x) > BALANCE.slowMo.jumpMaxDist) return false
+    if (planeDist(athlete, plan) > BALANCE.slowMo.jumpMaxDist) return false
     athlete.x = plan.x
+    athlete.z = plan.z
+    athlete.vx = 0
+    athlete.vz = 0
     setAction(athlete, 'cabeca')
     s.slowMo = { athleteId: plan.athleteId, aim: aimFromMove(team, inputs[team].move) }
     // Segue: um aperto neste mesmo passo já vale como escolha.
@@ -70,6 +73,8 @@ function slowMoAttack(s: MatchState, plan: ContactPlan, inputs: [TeamInput, Team
     e.sharkDown && isMeterFull(s.meter[team]) ? 'sharkataque' : e.forteDown ? 'forte' : e.pingoDown ? 'pingo' : null
   if (choice) executeTouch(s, plan, choice, aim, events, { x: s.ball.x, y: s.ball.y })
   else if (s.time >= plan.tIdeal) executeTouch(s, plan, 'fraco', aim, events)
+  // A direção da mira continua segurada depois do ataque: não faz o atleta correr.
+  if (!s.slowMo) s.buttons[team].moveLocked = true
   return true
 }
 
@@ -90,8 +95,7 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
   if (plan.incoming && plan.touchIndex === 1) return defend(s, plan, inputs, events)
   if (s.time < plan.tIdeal) return
 
-  const d = Math.abs(s.athletes[plan.athleteId].x - plan.x)
-  if (d <= reachOf(s, plan.athleteId)) {
+  if (planeDist(s.athletes[plan.athleteId], plan) <= reachOf(s, plan.athleteId)) {
     const action: TouchAction = plan.touchIndex === 3 ? (plan.choice ?? 'fraco') : AUTO[plan.touchIndex]
     executeTouch(s, plan, action, aimFromMove(team, inputs[team].move), events)
     return
@@ -109,7 +113,7 @@ function defend(s: MatchState, plan: ContactPlan, inputs: [TeamInput, TeamInput]
   const press = s.buttons[plan.team].fortePressAt
   const offset = press === null ? Infinity : press - plan.tIdeal
   const pressed = press !== null && Math.abs(offset) <= def.window && press >= plan.createdAt
-  const d = Math.abs(s.athletes[plan.athleteId].x - plan.x)
+  const d = planeDist(s.athletes[plan.athleteId], plan)
   if (pressed && s.time >= plan.tIdeal && d <= def.reach) {
     const perfeita = Math.abs(offset) <= def.perfect
     if (perfeita) s.meter[plan.team] = addMeter(s.meter[plan.team], BALANCE.meter.defesaPerfeita)

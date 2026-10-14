@@ -34,7 +34,7 @@ export function planContact(s: MatchState): ContactPlan | null {
     touchIndex = 1
   } else {
     const [a, b] = s.athletes.filter((x) => x.team === team)
-    athleteId = Math.abs(a.x - landing.x) <= Math.abs(b.x - landing.x) ? a.id : b.id
+    athleteId = planeDist(a, landing) <= planeDist(b, landing) ? a.id : b.id
     touchIndex = 1
   }
 
@@ -44,8 +44,8 @@ export function planContact(s: MatchState): ContactPlan | null {
     if (dt === null) return null
     const p = positionAt(s.ball, dt)
     if (sideOf(p.x) !== team) return null
-    const reachable = Math.abs(athlete.x - p.x) / BALANCE.move.manual <= dt
-    return { kind, x: p.x, y: p.y, dt, reachable }
+    const reachable = planeDist(athlete, p) / BALANCE.move.manual <= dt
+    return { kind, x: p.x, y: p.y, z: p.z, dt, reachable }
   }
 
   const order: Kind[] = touchIndex === 3 ? ['cabeca', 'peito', 'chapa'] : ['peito', 'chapa']
@@ -64,6 +64,7 @@ export function planContact(s: MatchState): ContactPlan | null {
     kind: chosen.kind,
     x: chosen.x,
     y: chosen.y,
+    z: chosen.z,
     tIdeal: s.time + chosen.dt,
     createdAt: s.time,
     incoming,
@@ -95,6 +96,9 @@ const MAX_X = 11
 /** Ganho do "vai até o alvo e freia" (1/s). */
 const SEEK_GAIN = 6
 
+/** Distância no chão (plano x, z). */
+export const planeDist = (a: { x: number; z: number }, b: { x: number; z: number }): number => Math.hypot(a.x - b.x, a.z - b.z)
+
 function clampToSide(a: Athlete): void {
   const sign = sideSign(a.team)
   const d = Math.abs(a.x)
@@ -102,29 +106,59 @@ function clampToSide(a: Athlete): void {
     a.x = sign * Math.min(MAX_X, Math.max(MIN_X, d))
     a.vx = 0
   }
+  const zMax = BALANCE.athleteMaxZ
+  if (Math.abs(a.z) > zMax) {
+    a.z = Math.sign(a.z) * zMax
+    a.vz = 0
+  }
 }
 
-/** Leva a velocidade até a desejada com aceleração/frenagem e anda. */
-function drive(a: Athlete, desiredVx: number, dt: number): void {
+/** Aproxima uma velocidade da desejada com aceleração/frenagem. */
+function approach(v: number, desired: number, dt: number): number {
   const m = BALANCE.move
-  const speedingUp = Math.abs(desiredVx) > Math.abs(a.vx) && (a.vx === 0 || Math.sign(desiredVx) === Math.sign(a.vx))
+  const speedingUp = Math.abs(desired) > Math.abs(v) && (v === 0 || Math.sign(desired) === Math.sign(v))
   const rate = speedingUp ? m.accel : m.decel
-  const dv = desiredVx - a.vx
-  a.vx += Math.sign(dv) * Math.min(Math.abs(dv), rate * dt)
+  const dv = desired - v
+  return v + Math.sign(dv) * Math.min(Math.abs(dv), rate * dt)
+}
+
+/** Leva a velocidade até a desejada (por eixo) e anda. */
+function drive(a: Athlete, desiredVx: number, desiredVz: number, dt: number): void {
+  a.vx = approach(a.vx, desiredVx, dt)
+  a.vz = approach(a.vz, desiredVz, dt)
   a.x += a.vx * dt
+  a.z += a.vz * dt
   clampToSide(a)
 }
 
+/** Direção da entrada → velocidade desejada (diagonal com a mesma velocidade máxima). */
+function inputVelocity(move: number, moveZ: number, speed: number): [number, number] {
+  const len = Math.hypot(move, moveZ)
+  return len === 0 ? [0, 0] : [(move / len) * speed, (moveZ / len) * speed]
+}
+
 /** Vai até um ponto do próprio lado, freando ao chegar. */
-function seek(a: Athlete, team: Side, targetX: number, speed: number, dt: number): void {
-  const tx = sideSign(team) * Math.min(MAX_X, Math.max(MIN_X, Math.abs(targetX)))
-  const gap = tx - a.x
-  if (Math.abs(gap) < 0.02 && Math.abs(a.vx) < 0.3) {
+function seek(a: Athlete, team: Side, target: { x: number; z: number }, speed: number, dt: number): void {
+  const tx = sideSign(team) * Math.min(MAX_X, Math.max(MIN_X, Math.abs(target.x)))
+  const tz = target.z
+  const gx = tx - a.x
+  const gz = tz - a.z
+  if (Math.hypot(gx, gz) < 0.02 && Math.hypot(a.vx, a.vz) < 0.3) {
     a.x = tx
+    a.z = tz
     a.vx = 0
+    a.vz = 0
     return
   }
-  drive(a, Math.max(-speed, Math.min(speed, gap * SEEK_GAIN)), dt)
+  // Velocidade proporcional à distância, limitada à máxima (na diagonal também).
+  let vx = gx * SEEK_GAIN
+  let vz = gz * SEEK_GAIN
+  const v = Math.hypot(vx, vz)
+  if (v > speed) {
+    vx *= speed / v
+    vz *= speed / v
+  }
+  drive(a, vx, vz, dt)
 }
 
 /**
@@ -134,35 +168,30 @@ function seek(a: Athlete, team: Side, targetX: number, speed: number, dt: number
 export function updatePositions(s: MatchState, inputs: [TeamInput, TeamInput], dt: number): void {
   const plan = s.plan
   const slow = s.slowMo !== null
+  const bp = BALANCE.basePos
   for (const team of [0, 1] as Side[]) {
     const sign = sideSign(team)
     const mates = s.athletes.filter((a) => a.team === team)
     const hasBall = plan?.team === team
     const [a, b] = mates
-    const aFront = Math.abs(a.x) <= Math.abs(b.x)
     const human = team === s.config.humanTeam
-    // Defendendo, o parceiro do jogador ocupa a posição que o controlado deixou livre.
     const ctrl = human && s.controlled !== null ? s.athletes[s.controlled] : null
-    const ctrlFront = ctrl ? Math.abs(ctrl.x) <= (BALANCE.basePos.front + BALANCE.basePos.back) / 2 : false
     const baseOf = (x: Athlete) => {
-      if (hasBall) return sign * BALANCE.basePos.support
-      const front = ctrl ? !ctrlFront : (x === a) === aFront
-      return sign * (front ? BALANCE.basePos.front : BALANCE.basePos.back)
+      // Com a bola, quem não toca vai para perto da rede, na própria faixa.
+      if (hasBall) return { x: sign * bp.support, z: Math.max(-bp.supportZ, Math.min(bp.supportZ, x.z)) }
+      // Sem a bola, lado a lado; o parceiro do jogador fica na faixa oposta à do controlado.
+      const near = ctrl ? ctrl.z < 0 : x === (a.z <= b.z ? b : a)
+      return { x: sign * bp.defense, z: (near ? 1 : -1) * bp.laneZ }
     }
-    const move = slow ? 0 : inputs[team].move
+    const i = inputs[team]
+    const locked = s.buttons[team].moveLocked
+    const [vx, vz] = slow || locked ? [0, 0] : inputVelocity(i.move, i.moveZ, BALANCE.move.manual)
 
     for (const ath of mates) {
       if (slow && s.slowMo?.athleteId === ath.id) continue // o atacante está no ar
-      if (human && ath.id === s.controlled) {
-        drive(ath, move * BALANCE.move.manual, dt)
-      } else if (human) {
-        seek(ath, team, baseOf(ath), BALANCE.move.base, dt)
-      } else if (hasBall && plan.athleteId === ath.id) {
-        drive(ath, move * BALANCE.move.manual, dt)
-      } else {
-        seek(ath, team, baseOf(ath), BALANCE.move.base, dt)
-      }
-      ath.targetX = ath.x
+      const driven = human ? ath.id === s.controlled : hasBall && plan.athleteId === ath.id
+      if (driven) drive(ath, vx, vz, dt)
+      else seek(ath, team, baseOf(ath), BALANCE.move.base, dt)
     }
   }
 }

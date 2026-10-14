@@ -17,7 +17,7 @@ export const BALANCE = {
   /** Velocidades (m/s) e aceleração/frenagem (m/s²): controle manual e posicionamento base. */
   move: { manual: 5, base: 4.5, accel: 33, decel: 50 },
   /** Distância máxima até a bola para o toque automático. */
-  reach: 0.7,
+  reach: 0.9,
   /** Folga depois do contato planejado em que a bola ainda não conta como caída (s). */
   contactGrace: 0.05,
   /** Contra ataque forte a bola chega rápida: a IA reage mais devagar. */
@@ -47,6 +47,11 @@ export const BALANCE = {
   contact: { chapa: 0.45, peito: 1.3, cabeca: 3.2 },
   /** O pé do Sharkataque bate acima da cabeça. */
   sharkExtraHeight: 0.3,
-  /** Posições base (distância da rede). */
-  basePos: { front: 3.5, back: 6.5, support: 1.5 },
+  /**
+   * Posições base: sem a bola, lado a lado a `defense` m da rede e z = ±laneZ; com a bola, quem não toca
+   * vai a `support` m da rede (z limitado a ±supportZ); no saque, o parceiro do sacador fica a `front` m.
+   */
+  basePos: { defense: 5.0, laneZ: 2.2, support: 1.5, supportZ: 2, front: 3.5, serveZ: 2 },
+  /** Limite de z dos atletas (podem sair um pouco da quadra). */
+  athleteMaxZ: 6.5,
 } as const
