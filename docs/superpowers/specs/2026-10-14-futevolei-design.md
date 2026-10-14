@@ -1,7 +1,7 @@
 # Futevôlei 2x2 — Design (v1)
 
 Data: 2026-10-14
-Nome provisório do jogo: **FTV — Sharkataque**
+Nome provisório do jogo: **FTV - Teste**
 
 ## 1. Objetivo e contexto
 
