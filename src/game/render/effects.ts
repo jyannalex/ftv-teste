@@ -77,3 +77,68 @@ export function sharkEffect(scene: Phaser.Scene, x: number, y: number, dir: 1 | 
   scene.tweens.add({ targets: shark, alpha: 0, delay: 420, duration: 250, onComplete: () => shark.destroy() })
   scene.cameras.main.shake(180, 0.008)
 }
+
+/** Marcas no chão: sombra de onde a bola vai cair e anel da mira. Desenhadas sob os atletas. */
+export class GroundMarks {
+  private g: Phaser.GameObjects.Graphics
+  private t = 0
+
+  constructor(scene: Phaser.Scene) {
+    this.g = scene.add.graphics()
+  }
+
+  update(landingX: number | null, aimX: number | null, dt: number): void {
+    this.t += dt
+    const g = this.g
+    g.clear()
+    const y = toScreenY(0) + 2
+    if (landingX !== null) g.fillStyle(0x000000, 0.3).fillEllipse(toScreenX(landingX), y, 30, 9)
+    if (aimX !== null) {
+      const pulse = 1 + Math.sin(this.t * 10) * 0.08
+      g.lineStyle(3, 0xffe14d, 1).strokeEllipse(toScreenX(aimX), y, 44 * pulse, 14 * pulse)
+      g.lineStyle(2, 0xffffff, 0.9).strokeEllipse(toScreenX(aimX), y, 26 * pulse, 8 * pulse)
+    }
+  }
+}
+
+/** Câmera lenta do ataque: bordas escurecidas, bolha no atacante, anel na bola e o aviso de escolha. */
+export class SlowMoFx {
+  private veil: Phaser.GameObjects.Graphics
+  private fx: Phaser.GameObjects.Graphics
+  private text: Phaser.GameObjects.Text
+  private t = 0
+
+  constructor(scene: Phaser.Scene) {
+    this.veil = scene.add.graphics().setDepth(5)
+    for (let i = 0; i < 6; i++) {
+      const inset = i * 14
+      this.veil.lineStyle(28, 0x000000, 0.08).strokeRect(inset, inset, 1280 - 2 * inset, 720 - 2 * inset)
+    }
+    this.fx = scene.add.graphics().setDepth(5).setBlendMode(Phaser.BlendModes.ADD)
+    this.text = scene.add
+      .text(640, 240, 'ESCOLHA!   FORTE · PINGO · 🦈', { fontFamily: 'Arial Black, Arial', fontSize: '30px', color: '#ffffff' })
+      .setOrigin(0.5)
+      .setStroke('#0b1d33', 8)
+      .setDepth(5)
+    this.hide()
+  }
+
+  show(attacker: { x: number; y: number }, ball: { x: number; y: number }, dt: number): void {
+    this.t += dt
+    this.veil.setVisible(true)
+    this.text.setVisible(true).setScale(1 + Math.sin(this.t * 6) * 0.04)
+    const g = this.fx.setVisible(true)
+    g.clear()
+    const r = 78 + Math.sin(this.t * 5) * 4
+    g.fillStyle(0x80deea, 0.12).fillEllipse(attacker.x, attacker.y, r * 1.5, r * 2)
+    g.lineStyle(3, 0xe0f7fa, 0.6).strokeEllipse(attacker.x, attacker.y, r * 1.5, r * 2)
+    g.lineStyle(3, 0xffffff, 0.95).strokeCircle(ball.x, ball.y, 22 + Math.sin(this.t * 12) * 3)
+  }
+
+  hide(): void {
+    this.veil.setVisible(false)
+    this.fx.setVisible(false)
+    this.text.setVisible(false)
+    this.t = 0
+  }
+}

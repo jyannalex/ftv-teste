@@ -11,23 +11,23 @@ const BALL = (g: Phaser.GameObjects.Graphics, x: number, y: number) => {
 
 const CARDS: Card[] = [
   {
-    title: '1. Dois botões',
-    lines: ['RECEPÇÃO (J): receber e levantar', 'ATAQUE (K): sacar e atacar', 'Seu atleta corre sozinho: acerte o TEMPO!'],
+    title: '1. Corra até a sombra',
+    lines: ['◀ ▶ (A/D) movem o seu atleta.', 'No lugar certo ele recebe e levanta sozinho.', 'Longe? FORTE (J) faz o PEIXINHO!'],
     draw: (g, x, y) => {
       g.fillStyle(0x2e7d32, 1).fillCircle(x - 40, y, 26)
       g.fillStyle(0xc62828, 1).fillCircle(x + 40, y, 26)
     },
   },
   {
-    title: '2. Três toques',
-    lines: ['1º chapa ou peito → 2º levantada →', '3º ataque de cabeça. Sem mão!', 'O mesmo atleta não toca duas vezes seguidas.'],
+    title: '2. Três toques, sem mão',
+    lines: ['1º chapa ou peito → 2º levantada →', '3º ataque. O jogo troca o atleta sozinho.', 'Saque: segure FORTE e solte (◀ ▶ mira).'],
     draw: (g, x, y) => {
       for (let i = 0; i < 3; i++) BALL(g, x - 60 + i * 60, y - Math.sin((i / 2) * Math.PI) * 18)
     },
   },
   {
-    title: '3. Pingo × ataque forte',
-    lines: ['Toque rápido em ATAQUE = Pingo', '(cai logo atrás da rede)', 'Segure e solte = forte. Demais vai fora!'],
+    title: '3. Ataque em câmera lenta',
+    lines: ['No 3º toque você pula e o tempo desacelera:', 'FORTE (J) bate forte · PINGO (K) cai na rede', '◀ ▶ mira curto ou fundo.'],
     draw: (g, x, y) => {
       g.fillStyle(0xffffff, 1).fillRect(x - 3, y - 26, 6, 40)
       g.lineStyle(3, 0xffe14d, 1).lineBetween(x - 50, y - 20, x + 70, y + 10)
@@ -36,7 +36,7 @@ const CARDS: Card[] = [
   },
   {
     title: '4. Sharkataque 🦈',
-    lines: ['Toques Perfeitos, defesas e pontos', 'enchem a barra. Cheia + ataque forte', 'perto da rede = bicicleta imparável!'],
+    lines: ['Toques, defesas e pontos enchem a barra.', 'Cheia: aperte 🦈 (Espaço) na câmera lenta', 'para a bicicleta imparável!'],
     draw: (g, x, y) => {
       g.fillStyle(0x23384f, 1).fillRoundedRect(x - 80, y - 8, 160, 16, 6)
       g.fillStyle(0x00e5ff, 1).fillRoundedRect(x - 80, y - 8, 160, 16, 6)

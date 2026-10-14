@@ -1,15 +1,18 @@
 import Phaser from 'phaser'
 import type { MatchState } from '../../core/match'
-import type { Side } from '../../core/rules'
 import { toScreenX } from './view'
 
 const FONT = 'Arial Black, Arial, sans-serif'
 const METER_W = 260
+/** Barra do Sharkataque do jogador, embaixo no centro. */
+const BIG_W = 420
+const BIG_Y = 692
 
 /** Placar, barras do Sharkataque, contador de toques, marcador e textos flutuantes. */
 export class Hud {
   private scoreText: Phaser.GameObjects.Text
   private meters: Phaser.GameObjects.Graphics
+  private meterLabel: Phaser.GameObjects.Text
   private touchText: Phaser.GameObjects.Text
   private marker: Phaser.GameObjects.Triangle
   private t = 0
@@ -31,6 +34,10 @@ export class Hud {
       .text(640, 14, '0  x  0', { fontFamily: FONT, fontSize: '34px', color: '#ffe14d' })
       .setOrigin(0.5, 0)
     this.meters = scene.add.graphics()
+    this.meterLabel = scene.add
+      .text(640, BIG_Y + 9, 'SHARKATAQUE', { fontFamily: FONT, fontSize: '15px', color: '#ffffff' })
+      .setOrigin(0.5)
+      .setStroke('#0b1d33', 4)
     this.touchText = scene.add
       .text(640, 98, '', { fontFamily: FONT, fontSize: '18px', color: '#ffffff' })
       .setOrigin(0.5, 0)
@@ -45,15 +52,18 @@ export class Hud {
 
     const g = this.meters
     g.clear()
-    for (const team of [0, 1] as Side[]) {
-      const x = team === 0 ? 360 : 920 - METER_W
-      const v = s.meter[team] / 100
-      const full = v >= 1
-      g.fillStyle(0x23384f, 1).fillRoundedRect(x, 60, METER_W, 14, 6)
-      const color = full ? (Math.floor(this.t * 6) % 2 ? 0x00e5ff : 0xffffff) : 0x1e88e5
-      const w = METER_W * v
-      if (w > 2) g.fillStyle(color, 1).fillRoundedRect(team === 0 ? x : x + METER_W - w, 60, w, 14, 6)
-    }
+    const blink = Math.floor(this.t * 6) % 2 ? 0x00e5ff : 0xffffff
+    // Adversário: barra pequena no placar.
+    const v1 = s.meter[1] / 100
+    g.fillStyle(0x23384f, 1).fillRoundedRect(920 - METER_W, 60, METER_W, 12, 5)
+    if (METER_W * v1 > 2) g.fillStyle(v1 >= 1 ? blink : 0xef6c00, 1).fillRoundedRect(920 - METER_W * v1, 60, METER_W * v1, 12, 5)
+    // Jogador: barra grande embaixo, como a "Finish Spike".
+    const v0 = s.meter[0] / 100
+    const x0 = 640 - BIG_W / 2
+    g.fillStyle(0x0b1d33, 0.85).fillRoundedRect(x0 - 4, BIG_Y - 4, BIG_W + 8, 26, 12)
+    if (BIG_W * v0 > 4) g.fillGradientStyle(0xff9800, 0x00e5ff, 0xff9800, 0x00e5ff, 1).fillRect(x0, BIG_Y, BIG_W * v0, 18)
+    if (v0 >= 1) g.lineStyle(3, blink, 1).strokeRoundedRect(x0 - 4, BIG_Y - 4, BIG_W + 8, 26, 12)
+    this.meterLabel.setText(v0 >= 1 ? '🦈 SHARKATAQUE PRONTO!' : 'SHARKATAQUE')
 
     const plan = s.plan
     if (s.phase === 'rally' && plan) {

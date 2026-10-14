@@ -1,7 +1,8 @@
 import Phaser from 'phaser'
 import { createAI, type AIController, type Personality } from '../../core/ai'
-import type { TouchAction } from '../../core/touch'
-import { type Athlete, cancelButtons, createMatch, IDLE, type MatchEvent, matchConfig, type MatchState, step } from '../../core/match'
+import { aimFromMove, type TouchAction } from '../../core/touch'
+import { predictLanding } from '../../core/physics'
+import { type Athlete, cancelButtons, createMatch, IDLE, type TeamInput, type MatchEvent, matchConfig, type MatchState, step } from '../../core/match'
 import { createRng } from '../../core/rng'
 import type { Side } from '../../core/rules'
 import { BALANCE } from '../../data/balance'
@@ -16,7 +17,7 @@ import { createFixedStepper, type FixedStepper } from '../loop/fixedStep'
 import { type ArenaRuntime, drawArena } from '../render/arenas'
 import { AthleteView } from '../render/AthleteView'
 import { BallView } from '../render/BallView'
-import { BallTrail, sandPuff, sharkEffect } from '../render/effects'
+import { BallTrail, GroundMarks, SlowMoFx, sandPuff, sharkEffect } from '../render/effects'
 import { Hud } from '../render/Hud'
 import { ACTION_DURATION, LOOPING, type Pose, poseFor } from '../render/poses'
 import { toScreenX, toScreenY } from '../render/view'
@@ -73,6 +74,10 @@ export class MatchScene extends Phaser.Scene {
   /** Qual botão cada dedo está segurando. */
   private pointerButtons = new Map<number, ButtonName | -1 | 1>()
   private sharkButton?: Phaser.GameObjects.Container
+  private marks!: GroundMarks
+  private slowFx!: SlowMoFx
+  /** Última entrada do jogador (para a mira na tela). */
+  private lastHuman: TeamInput = IDLE
   private arena!: ArenaRuntime
   private trail!: BallTrail
   private tipText?: Phaser.GameObjects.Text
@@ -101,6 +106,7 @@ export class MatchScene extends Phaser.Scene {
 
     this.arena = drawArena(this, this.cfg.arena)
     this.drawCourt()
+    this.marks = new GroundMarks(this)
     this.audio = gameAudio(this.game)
     const looks = [
       { shirt: this.cfg.player.shirt, shorts: 0x263238 },
@@ -116,6 +122,7 @@ export class MatchScene extends Phaser.Scene {
     this.trail = new BallTrail(this)
     this.ballView = new BallView(this)
     this.hud = new Hud(this, [this.cfg.player.name, opponent.name])
+    this.slowFx = new SlowMoFx(this)
     this.prevX = this.state.athletes.map((a) => a.x)
 
     this.createButtons()
@@ -159,7 +166,8 @@ export class MatchScene extends Phaser.Scene {
 
   private tick(): void {
     const s = this.state
-    const events = step(s, [this.controls.consume(), s.phase === 'fim' ? IDLE : this.ai.think(s)])
+    this.lastHuman = this.controls.consume()
+    const events = step(s, [this.lastHuman, s.phase === 'fim' ? IDLE : this.ai.think(s)])
     for (const e of events) this.onEvent(e)
   }
 
@@ -209,10 +217,33 @@ export class MatchScene extends Phaser.Scene {
       if (a.id === s.controlled && s.phase !== 'fim') marker = this.athleteViews[i].topOf(a, pose)
     })
     this.trail.update(s.ball)
+    this.marks.update(this.landingX(), this.aimX(), dt)
+    if (s.slowMo) {
+      const a = s.athletes[s.slowMo.athleteId]
+      this.slowFx.show({ x: toScreenX(a.x), y: toScreenY(Math.max(1.3, s.ball.y - 0.9)) }, { x: toScreenX(s.ball.x), y: toScreenY(s.ball.y) }, dt)
+    } else this.slowFx.hide()
     this.ballView.draw(s.ball, dt)
     this.sharkButton?.setVisible(isMeterFull(s.meter[0]))
     this.hud.update(s, marker, dt)
     this.updateTips()
+  }
+
+  /** Onde a bola vai cair (sombra na areia), durante o rally. */
+  private landingX(): number | null {
+    const s = this.state
+    if (s.phase !== 'rally') return null
+    const x = predictLanding(s.ball).x
+    return Math.abs(x) <= 12 ? x : null
+  }
+
+  /** Alvo da mira do jogador: no saque (segurando FORTE) e na câmera lenta. */
+  private aimX(): number | null {
+    const s = this.state
+    if (s.slowMo) return BALANCE.aimDepth[s.slowMo.aim]
+    const b = s.buttons[0]
+    if (s.phase === 'saque' && s.score.servingTeam === 0 && b.forte && b.forteDownAt !== null)
+      return BALANCE.serveDepth[aimFromMove(0, this.lastHuman.move)]
+    return null
   }
 
   /** Dicas contextuais no primeiro rally da primeira partida. */
@@ -222,8 +253,8 @@ export class MatchScene extends Phaser.Scene {
     const s = this.state
     const plan = s.phase === 'rally' ? s.plan : null
     let text = ''
-    if (s.phase === 'saque' && s.score.servingTeam === 0) text = 'Segure FORTE e solte para sacar  ·  ◀ ▶ mira'
-    else if (s.slowMo) text = 'Câmera lenta! FORTE, PINGO ou 🦈  ·  ◀ ▶ mira'
+    if (s.slowMo) text = ''
+    else if (s.phase === 'saque' && s.score.servingTeam === 0) text = 'Segure FORTE e solte para sacar  ·  ◀ ▶ mira'
     else if (plan?.team === 0) text = 'Use ◀ ▶ para ir até a sombra da bola'
     tip.setText(text).setVisible(text !== '')
   }
