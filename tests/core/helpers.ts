@@ -1,6 +1,7 @@
-import { createMatch, DT, type MatchEvent, type MatchState, matchConfig, IDLE, step, type TeamInput } from '../../src/core/match'
 import { planContact } from '../../src/core/contact'
+import { createMatch, type MatchEvent, type MatchState, matchConfig, IDLE, step, type TeamInput } from '../../src/core/match'
 import type { Side } from '../../src/core/rules'
+import type { Aim } from '../../src/core/touch'
 
 export type InputsFn = (s: MatchState, i: number) => [TeamInput, TeamInput]
 
@@ -15,51 +16,31 @@ export function simulate(s: MatchState, inputsFn: InputsFn, maxSteps: number, st
   return events
 }
 
-export function teamInputs(team: Side, input: TeamInput): [TeamInput, TeamInput] {
-  return team === 0 ? [input, IDLE] : [IDLE, input]
+export const standStill: InputsFn = () => [IDLE, IDLE]
+
+export function teamInputs(team: Side, input: Partial<TeamInput>): [TeamInput, TeamInput] {
+  const i = { ...IDLE, ...input }
+  return team === 0 ? [i, IDLE] : [IDLE, i]
 }
 
-/** Segura o Ataque do time do passo 0 até `ms` e depois solta. */
-export function holdThenRelease(team: Side, ms: number): InputsFn {
-  const steps = Math.round((ms / 1000) * 60)
-  return (_s, i) => teamInputs(team, { recepcao: false, ataque: i < steps })
+/** Direção na tela que dá a mira pedida para o time. */
+export function moveFor(team: Side, aim: Aim): -1 | 0 | 1 {
+  if (aim === 'meio') return 0
+  const towardNet = team === 0 ? 1 : -1
+  return (aim === 'curto' ? towardNet : -towardNet) as -1 | 1
 }
 
-/**
- * Em cada plano novo do time, aperta Recepção (ou solta o Ataque segurado por `holdMs`)
- * no passo mais próximo de `tIdeal + offsetSec`.
- */
-export function pressAt(team: Side, button: 'recepcao' | 'ataque', offsetSec: number, holdMs = 0): InputsFn {
-  const done = new Set<string>()
-  return (s) => {
-    const p = s.plan
-    if (!p || p.team !== team) return [IDLE, IDLE]
-    const key = `${p.athleteId}:${p.tIdeal.toFixed(4)}`
-    const now = s.time + DT // o step soma dt antes de ler a entrada
-    const target = p.tIdeal + offsetSec
-    if (done.has(key)) return [IDLE, IDLE]
-    if (button === 'recepcao') {
-      if (now >= target - DT / 2) {
-        done.add(key)
-        return teamInputs(team, { recepcao: true, ataque: false })
-      }
-      return [IDLE, IDLE]
-    }
-    const start = target - holdMs / 1000
-    if (now >= target - DT / 2) {
-      done.add(key)
-      return [IDLE, IDLE] // solta
-    }
-    return teamInputs(team, { recepcao: false, ataque: now >= start - DT / 2 })
-  }
+/** Segura o botão esquerdo por 10 passos e solta com a direção da mira. */
+export function serveWith(team: Side, aim: Aim = 'meio'): InputsFn {
+  return (_s, i) => teamInputs(team, { forte: i < 10, move: i >= 10 && i < 12 ? moveFor(team, aim) : 0 })
 }
 
 /**
  * Partida IA × IA em rally, com a bola descendo perto da rede no lado de `team`
  * depois de 2 toques: o próximo é o 3º (ataque).
  */
-export function stateWithAttackPlan(team: Side, defendersX: [number, number]): MatchState {
-  const s = createMatch(matchConfig({ humanTeam: null }))
+export function stateWithAttackPlan(team: Side, defendersX: [number, number], humanTeam: Side | null = null): MatchState {
+  const s = createMatch(matchConfig({ humanTeam }))
   const sign = team === 0 ? -1 : 1
   s.phase = 'rally'
   s.phaseT = 0
@@ -74,5 +55,18 @@ export function stateWithAttackPlan(team: Side, defendersX: [number, number]): M
   s.athletes[otherFirst + 1].x = defendersX[1]
   for (const a of s.athletes) a.targetX = a.x
   s.plan = planContact(s)
+  if (humanTeam === team && s.plan) s.controlled = s.plan.athleteId
+  return s
+}
+
+/** Bola em rally descendo em `x` (vinda do outro lado), com o time de `x` para receber. */
+export function incomingBall(x: number, opts: { humanTeam?: Side | null; vx?: number } = {}): MatchState {
+  const s = createMatch(matchConfig({ humanTeam: opts.humanTeam ?? null }))
+  s.phase = 'rally'
+  const team: Side = x < 0 ? 0 : 1
+  s.touch = { team: team === 0 ? 1 : 0, count: 1, lastAthlete: team === 0 ? 2 : 0 }
+  s.ball = { x, y: 5, vx: opts.vx ?? 0, vy: 0 }
+  s.plan = planContact(s)
+  if (opts.humanTeam === team && s.plan) s.controlled = s.plan.athleteId
   return s
 }

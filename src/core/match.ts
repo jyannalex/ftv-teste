@@ -1,12 +1,13 @@
 import { BALANCE } from '../data/balance'
+import { replan, setAction, updatePositions } from './contact'
 import { type Ball, bounceDead, launchVelocity, stepBall } from './physics'
+import { type Edges, resolveContact, touchStillPossible } from './resolve'
 import { createRng, type Rng } from './rng'
 import {
   awardPoint,
   initialScore,
   type PointReason,
   partner,
-  registerTouch,
   resolveLanding,
   type ScoreState,
   type Side,
@@ -14,32 +15,37 @@ import {
   sideSign,
   type TouchState,
 } from './rules'
-import { planContact, updatePositions } from './contact'
-import { addMeter, isMeterFull } from './specialMeter'
-import { classifyHold, type Grade, gradeTiming, outgoing, type TouchAction, type Windows, windowsFor } from './touch'
+import { type Aim, aimFromMove, type Quality, type TouchAction } from './touch'
+
+export { setAction }
 
 export const DT = 1 / 60
 
 export type TeamInput = {
-  /** true só no passo em que o botão foi apertado. */
-  recepcao: boolean
-  /** true enquanto o botão está segurado. */
-  ataque: boolean
+  /** Direção na tela: −1 esquerda, +1 direita. */
+  move: -1 | 0 | 1
+  /** Botão esquerdo (saque, ataque forte, peixinho), segurado. */
+  forte: boolean
+  /** Botão direito (Pingo), segurado. */
+  pingo: boolean
+  /** Sharkataque, segurado. */
+  shark: boolean
 }
-export const IDLE: TeamInput = { recepcao: false, ataque: false }
+export const IDLE: TeamInput = { move: 0, forte: false, pingo: false, shark: false }
 
 export type MatchConfig = {
   seed: number
   targetPoints: number
-  easyAssist: boolean
   /** Time controlado por humano, ou null para IA × IA. */
   humanTeam: Side | null
-  /** Atraso de reação de cada time ao correr para a bola (segundos). */
-  reactionDelay: [number, number]
+  /** Alcance do toque automático do atleta controlado (m). */
+  humanReach: number
+  /** Duração real da câmera lenta do ataque do jogador (s). */
+  slowMoSec: number
 }
 
 export function matchConfig(p: Partial<MatchConfig> = {}): MatchConfig {
-  return { seed: 1, targetPoints: 12, easyAssist: false, humanTeam: 0, reactionDelay: [0, 0.2], ...p }
+  return { seed: 1, targetPoints: 12, humanTeam: 0, humanReach: BALANCE.reach, slowMoSec: 1.5, ...p }
 }
 
 export type AthleteAction =
@@ -52,6 +58,7 @@ export type AthleteAction =
   | 'sharkataque'
   | 'saque'
   | 'comemorando'
+  | 'peixinho'
 
 export type Athlete = {
   id: number
@@ -65,7 +72,15 @@ export type Athlete = {
   actionT: number
 }
 
-export type HoldTrack = { down: boolean; startT: number }
+export type ButtonTrack = {
+  forte: boolean
+  pingo: boolean
+  shark: boolean
+  /** Último aperto do botão esquerdo (tempo da partida). */
+  fortePressAt: number | null
+  /** Quando o botão esquerdo foi apertado e segue segurado; null se o aperto não vale (veio de antes). */
+  forteDownAt: number | null
+}
 
 export type ContactPlan = {
   athleteId: number
@@ -76,19 +91,13 @@ export type ContactPlan = {
   y: number
   /** Tempo absoluto da partida em que a bola chega ao ponto de contato. */
   tIdeal: number
-  /** Momento em que o plano foi criado (para o atraso de reação). */
   createdAt: number
-  reachable: boolean
-  incomingForce: number
-  incomingShark: boolean
-}
-
-export type PendingTouch = {
-  action: TouchAction
-  grade: Grade
-  executeAt: number
-  force?: number
-  overpower?: boolean
+  /** Ataque que vem do outro time (para o bônus de defesa). */
+  incoming: 'forte' | null
+  /** Já passou do contato e está esperando um peixinho atrasado. */
+  resolving: boolean
+  /** Escolha de ataque do 3º toque (a última borda de botão). */
+  choice: 'forte' | 'pingo' | 'sharkataque' | null
 }
 
 export type MatchPhase = 'saque' | 'rally' | 'ponto' | 'fim'
@@ -104,10 +113,11 @@ export type MatchState = {
   score: ScoreState
   touch: TouchState
   meter: [number, number]
-  hold: [HoldTrack, HoldTrack]
-  lastAttack: { team: Side; force: number; shark: boolean } | null
+  buttons: [ButtonTrack, ButtonTrack]
+  lastAttack: { team: Side; kind: 'forte' | 'shark' } | null
   plan: ContactPlan | null
-  pending: PendingTouch | null
+  /** Câmera lenta do ataque do jogador. */
+  slowMo: { athleteId: number; aim: Aim } | null
   /** Atleta sob controle do humano (marcador amarelo). */
   controlled: number | null
   winner: Side | null
@@ -115,15 +125,14 @@ export type MatchState = {
 
 export type MatchEvent =
   | { type: 'saque'; athleteId: number }
-  | { type: 'toque'; athleteId: number; action: TouchAction; grade: Grade }
-  | { type: 'erroTiming'; athleteId: number }
+  | { type: 'toque'; athleteId: number; action: TouchAction; quality: Quality }
+  | { type: 'perdeu'; athleteId: number }
   | { type: 'rede' }
   | { type: 'sharkataque'; athleteId: number }
   | { type: 'ponto'; winner: Side; reason: PointReason }
   | { type: 'fimDeSet'; winner: Side }
 
-const FRONT = 3.5
-const BACK = 6.5
+const freshButtons = (): ButtonTrack => ({ forte: false, pingo: false, shark: false, fortePressAt: null, forteDownAt: null })
 
 export function createMatch(config: MatchConfig): MatchState {
   const athletes: Athlete[] = [0, 1, 2, 3].map((id) => ({
@@ -146,14 +155,11 @@ export function createMatch(config: MatchConfig): MatchState {
     score: initialScore(),
     touch: { team: null, count: 0, lastAthlete: null },
     meter: [0, 0],
-    hold: [
-      { down: false, startT: 0 },
-      { down: false, startT: 0 },
-    ],
+    buttons: [freshButtons(), freshButtons()],
     lastAttack: null,
     plan: null,
-    pending: null,
-    controlled: null,
+    slowMo: null,
+    controlled: config.humanTeam === null ? null : config.humanTeam * 2,
     winner: null,
   }
   setupServe(s)
@@ -166,9 +172,9 @@ function setupServe(s: MatchState): void {
   for (const a of s.athletes) {
     const sign = sideSign(a.team)
     const isFront = a.id % 2 === 0
-    a.x = sign * (isFront ? FRONT : BACK)
+    a.x = sign * (isFront ? BALANCE.basePos.front : BALANCE.basePos.back)
     if (a.id === server) a.x = sign * BALANCE.serveX
-    else if (a.id === partner(server)) a.x = sign * FRONT
+    else if (a.id === partner(server)) a.x = sign * BALANCE.basePos.front
     a.targetX = a.x
     a.y = 0
     setAction(a, 'parado')
@@ -178,48 +184,51 @@ function setupServe(s: MatchState): void {
   s.touch = { team: null, count: 0, lastAthlete: null }
   s.lastAttack = null
   s.plan = null
-  s.pending = null
-  s.controlled = s.config.humanTeam === s.score.servingTeam ? server : s.controlled
-  // Botão já segurado (desde a pausa do ponto): o saque conta a partir de agora.
-  for (const h of s.hold) if (h.down) h.startT = s.time
+  s.slowMo = null
+  if (s.config.humanTeam === s.score.servingTeam) s.controlled = server
+  // Botão já segurado (desde a pausa do ponto) não vale para o saque: precisa soltar e apertar de novo.
+  for (const b of s.buttons) b.forteDownAt = null
   setPhase(s, 'saque')
 }
 
 function setPhase(s: MatchState, phase: MatchPhase): void {
   s.phase = phase
   s.phaseT = 0
+  s.slowMo = null
 }
 
-export function setAction(a: Athlete, action: AthleteAction): void {
-  a.action = action
-  a.actionT = 0
+/** Esquece os botões segurados sem gerar borda (pausa, perda de foco). */
+export function cancelButtons(s: MatchState, team: Side): void {
+  s.buttons[team] = freshButtons()
 }
 
-/** Esquece o botão segurado sem contar como soltar (pausa, perda de foco). */
-export function cancelHold(s: MatchState, team: Side): void {
-  s.hold[team].down = false
+/** Atualiza os botões e devolve as bordas deste passo. */
+function trackButtons(s: MatchState, inputs: [TeamInput, TeamInput]): [Edges, Edges] {
+  return ([0, 1] as const).map((team) => {
+    const b = s.buttons[team]
+    const i = inputs[team]
+    const e: Edges = {
+      forteDown: i.forte && !b.forte,
+      forteUp: !i.forte && b.forte,
+      pingoDown: i.pingo && !b.pingo,
+      sharkDown: i.shark && !b.shark,
+    }
+    if (e.forteDown) {
+      b.fortePressAt = s.time
+      b.forteDownAt = s.time
+    }
+    b.forte = i.forte
+    b.pingo = i.pingo
+    b.shark = i.shark
+    return e
+  }) as [Edges, Edges]
 }
 
-/** Atualiza o rastreio do segurar e devolve quanto tempo (ms) cada time segurou, se soltou neste passo. */
-function trackHolds(s: MatchState, inputs: [TeamInput, TeamInput]): [number | null, number | null] {
-  const released: [number | null, number | null] = [null, null]
-  for (const team of [0, 1] as const) {
-    const h = s.hold[team]
-    const down = inputs[team].ataque
-    if (down && !h.down) h.startT = s.time
-    if (!down && h.down) released[team] = (s.time - h.startT) * 1000
-    h.down = down
-  }
-  return released
-}
-
-function serve(s: MatchState, holdMs: number, events: MatchEvent[]): void {
+function serve(s: MatchState, aim: Aim, events: MatchEvent[]): void {
   const team = s.score.servingTeam
   const sign = sideSign(team)
-  const { fullMs, overMs, apex } = BALANCE.serve
-  const f = Math.min(holdMs / fullMs, 1)
-  const target = holdMs > overMs ? -sign * (BALANCE.halfCourt + 2) : -sign * (2 + 6.5 * f)
-  const v = launchVelocity(s.ball, { x: target, y: BALANCE.ballRadius }, { apex })
+  const target = -sign * BALANCE.serveDepth[aim]
+  const v = launchVelocity(s.ball, { x: target, y: BALANCE.ballRadius }, { apex: BALANCE.serve.apex })
   s.ball = { ...s.ball, ...v }
   const server = s.score.server
   // O saque conta como 3 toques: bola que não passa é falta de quem sacou.
@@ -227,107 +236,7 @@ function serve(s: MatchState, holdMs: number, events: MatchEvent[]): void {
   setAction(s.athletes[server], 'saque')
   events.push({ type: 'saque', athleteId: server })
   setPhase(s, 'rally')
-  onBallLaunched(s)
-}
-
-/** Chamado sempre que a trajetória da bola muda: replaneja o próximo toque. */
-function onBallLaunched(s: MatchState): void {
-  s.pending = null
-  s.plan = planContact(s)
-  if (s.plan && s.plan.team === s.config.humanTeam) s.controlled = s.plan.athleteId
-}
-
-function windowsOf(s: MatchState, plan: ContactPlan): Windows {
-  return windowsFor({
-    incomingForce: plan.incomingForce,
-    incomingShark: plan.incomingShark,
-    easyAssist: s.config.easyAssist && plan.team === s.config.humanTeam,
-  })
-}
-
-/** Antes da janela, apertar até este tempo (s) antes dela conta como furada; antes disso é ignorado. */
-const WHIFF_SPAN = 0.35
-
-const TOUCH_ACTIONS: Record<1 | 2 | 3, TouchAction> = { 1: 'passe', 2: 'levantada', 3: 'devolucao' }
-
-/** Lê a entrada do time do plano e, se estiver na janela, agenda o toque. */
-function readTouchInput(
-  s: MatchState,
-  inputs: [TeamInput, TeamInput],
-  released: [number | null, number | null],
-  events: MatchEvent[],
-): void {
-  const plan = s.plan
-  if (!plan || s.pending || !plan.reachable) return
-  const pressed = inputs[plan.team].recepcao
-  const holdMs = released[plan.team]
-  if (!pressed && holdMs === null) return
-  const w = windowsOf(s, plan)
-  const offset = s.time - plan.tIdeal
-  const grade = gradeTiming(offset, w)
-  if (grade === null) {
-    // Cedo demais (mas perto): furou. Apertar sem parar não garante mais um toque.
-    if (offset < 0 && offset > -(w.ruim + WHIFF_SPAN)) {
-      events.push({ type: 'erroTiming', athleteId: plan.athleteId })
-      s.plan = null
-    }
-    return
-  }
-  const executeAt = Math.max(s.time, plan.tIdeal)
-  if (pressed) {
-    s.pending = { action: TOUCH_ACTIONS[plan.touchIndex], grade, executeAt }
-    return
-  }
-  const hold = classifyHold(holdMs!)
-  if (hold.kind === 'pingo') {
-    s.pending = { action: 'pingo', grade, executeAt }
-    return
-  }
-  const shark = isMeterFull(s.meter[plan.team]) && Math.abs(plan.x) <= BALANCE.sharkMaxNetDist
-  s.pending = { action: shark ? 'sharkataque' : 'forte', grade, executeAt, force: hold.force, overpower: hold.overpower }
-}
-
-const ATHLETE_ACTION: Partial<Record<TouchAction, AthleteAction>> = { pingo: 'pingo', sharkataque: 'sharkataque' }
-
-function executeTouch(s: MatchState, plan: ContactPlan, p: PendingTouch, events: MatchEvent[]): void {
-  const team = plan.team
-  const shark = p.action === 'sharkataque'
-  const from = { x: plan.x, y: plan.y + (shark ? BALANCE.sharkExtraHeight : 0) }
-  const v = outgoing({ action: p.action, team, from, grade: p.grade, force: p.force, overpower: p.overpower }, s.rng)
-  s.ball = { ...from, vx: v.vx, vy: v.vy }
-  s.touch = registerTouch(s.touch, plan.athleteId)
-
-  if (p.grade === 'perfeito') s.meter[team] = addMeter(s.meter[team], BALANCE.meter.perfeito)
-  if (plan.incomingForce >= 0.5 || plan.incomingShark) s.meter[team] = addMeter(s.meter[team], BALANCE.meter.defesaForte)
-
-  events.push({ type: 'toque', athleteId: plan.athleteId, action: p.action, grade: p.grade })
-  if (shark) {
-    s.meter[team] = 0
-    events.push({ type: 'sharkataque', athleteId: plan.athleteId })
-  }
-  s.lastAttack =
-    p.action === 'forte' || shark ? { team, force: shark ? 1 : (p.force ?? 0), shark } : null
-  setAction(s.athletes[plan.athleteId], ATHLETE_ACTION[p.action] ?? plan.kind)
-  onBallLaunched(s)
-}
-
-/** Toques e erros de timing durante o rally. */
-function stepContacts(s: MatchState, inputs: [TeamInput, TeamInput], released: [number | null, number | null], events: MatchEvent[]): void {
-  readTouchInput(s, inputs, released, events)
-  const plan = s.plan
-  if (plan && s.pending && s.time >= s.pending.executeAt) {
-    executeTouch(s, plan, s.pending, events)
-  } else if (plan && !s.pending && s.time > plan.tIdeal + windowsOf(s, plan).ruim) {
-    events.push({ type: 'erroTiming', athleteId: plan.athleteId })
-    s.plan = null
-  }
-}
-
-/** Enquanto um toque ainda pode acontecer, a bola não "cai" (o toque sai do ponto planejado). */
-function touchStillPossible(s: MatchState): boolean {
-  const plan = s.plan
-  if (!plan || !plan.reachable) return false
-  return s.pending !== null || s.time <= plan.tIdeal + windowsOf(s, plan).ruim
+  replan(s)
 }
 
 function endRally(s: MatchState, events: MatchEvent[]): void {
@@ -335,7 +244,6 @@ function endRally(s: MatchState, events: MatchEvent[]): void {
   s.score = awardPoint(s.score, winner)
   s.meter[winner] = Math.min(BALANCE.meter.max, s.meter[winner] + BALANCE.meter.ponto)
   s.plan = null
-  s.pending = null
   events.push({ type: 'ponto', winner, reason })
   for (const a of s.athletes) if (a.team === winner) setAction(a, 'comemorando')
   const setWin = setWinner(s.score.points, s.config.targetPoints)
@@ -353,32 +261,34 @@ function endRally(s: MatchState, events: MatchEvent[]): void {
 export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): MatchEvent[] {
   const events: MatchEvent[] = []
   if (s.phase === 'fim') return events
-  s.time += dt
-  s.phaseT += dt
-  for (const a of s.athletes) a.actionT += dt
-  const released = trackHolds(s, inputs)
+  const gdt = s.slowMo ? dt * BALANCE.slowMo.scale : dt
+  s.time += gdt
+  s.phaseT += gdt
+  for (const a of s.athletes) a.actionT += gdt
+  const edges = trackButtons(s, inputs)
 
   switch (s.phase) {
     case 'saque': {
-      const holdMs = released[s.score.servingTeam]
-      if (holdMs !== null) serve(s, holdMs, events)
-      else if (s.phaseT >= BALANCE.autoServeSec) serve(s, BALANCE.serve.fullMs * 0.5, events)
+      const team = s.score.servingTeam
+      const b = s.buttons[team]
+      if (edges[team].forteUp && b.forteDownAt !== null) serve(s, aimFromMove(team, inputs[team].move), events)
+      else if (s.phaseT >= BALANCE.autoServeSec) serve(s, 'meio', events)
       break
     }
     case 'rally': {
-      const r = stepBall(s.ball, dt)
+      const r = stepBall(s.ball, gdt)
       s.ball = r.ball
       if (r.hitNet) {
         events.push({ type: 'rede' })
-        onBallLaunched(s)
+        replan(s)
       }
-      stepContacts(s, inputs, released, events)
-      updatePositions(s, dt)
+      resolveContact(s, inputs, edges, events)
+      updatePositions(s, inputs, gdt)
       if (r.landed && !touchStillPossible(s)) endRally(s, events)
       break
     }
     case 'ponto': {
-      const r = stepBall(s.ball, dt)
+      const r = stepBall(s.ball, gdt)
       s.ball = r.landed ? (Math.abs(r.ball.vy) > 0.5 ? bounceDead(r.ball) : { ...r.ball, vx: 0, vy: 0 }) : r.ball
       if (s.phaseT >= BALANCE.pointPauseSec) setupServe(s)
       break

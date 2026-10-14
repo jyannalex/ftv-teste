@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createMatch, IDLE, matchConfig } from '../../src/core/match'
-import { holdThenRelease, simulate } from './helpers'
+import { cancelButtons, createMatch, IDLE, matchConfig } from '../../src/core/match'
+import { serveWith, simulate, standStill } from './helpers'
 
-describe('partida: saque e pontuação', () => {
+describe('partida: saque e pontuação (arcade)', () => {
   it('começa 0×0 em fase de saque com o atleta 0 no fundo', () => {
     const s = createMatch(matchConfig())
     expect(s.phase).toBe('saque')
@@ -10,43 +10,60 @@ describe('partida: saque e pontuação', () => {
     expect(s.athletes[0].x).toBeCloseTo(-9.5)
   })
 
-  it('saque dentro sem recepção vira ponto do sacador', () => {
-    const ev = simulate(createMatch(matchConfig()), holdThenRelease(0, 500), 3000, 'ponto')
+  it('saque meio sem defesa vira ponto do sacador', () => {
+    const ev = simulate(createMatch(matchConfig({ humanTeam: null })), serveWith(0, 'meio'), 3000, 'ponto')
     expect(ev).toContainEqual({ type: 'ponto', winner: 0, reason: 'chao' })
   })
 
-  it('saque segurado demais sai', () => {
-    const ev = simulate(createMatch(matchConfig()), holdThenRelease(0, 1200), 3000, 'ponto')
-    expect(ev).toContainEqual({ type: 'ponto', winner: 1, reason: 'fora' })
+  it.each([
+    ['curto', 3.0],
+    ['fundo', 8.0],
+  ] as const)('saque com mira %s cai a ~%s m', (aim, depth) => {
+    const s = createMatch(matchConfig({ humanTeam: null }))
+    // Receptores colados na rede (a IA parada não sai do lugar): ninguém recebe.
+    s.athletes[2].x = 0.4
+    s.athletes[3].x = 0.6
+    simulate(s, serveWith(0, aim), 3000, 'ponto')
+    expect(Math.abs(s.ball.x - depth)).toBeLessThan(0.6)
   })
 
-  it('depois do ponto volta ao saque com o sacador de quem pontuou', () => {
-    const s = createMatch(matchConfig())
-    simulate(s, holdThenRelease(0, 1200), 3000, 'ponto')
-    simulate(s, () => [IDLE, IDLE], 100)
-    expect(s.phase).toBe('saque')
-    expect(s.score.servingTeam).toBe(1)
-    expect(s.score.server).toBe(2)
-    expect(s.athletes[2].x).toBeCloseTo(9.5)
-  })
-
-  it('saque automático depois de 8 s parado (Review Focus 5)', () => {
-    const ev = simulate(createMatch(matchConfig()), () => [IDLE, IDLE], 8.2 * 60, 'saque')
+  it('saque automático depois de 8 s', () => {
+    const ev = simulate(createMatch(matchConfig()), standStill, 8.2 * 60, 'saque')
     expect(ev.some((e) => e.type === 'saque')).toBe(true)
   })
 
-  it('11×10 + ponto encerra o set', () => {
-    const s = createMatch(matchConfig())
-    s.score.points = [11, 10]
-    const ev = simulate(s, holdThenRelease(0, 500), 3000, 'fimDeSet')
-    expect(ev).toContainEqual({ type: 'fimDeSet', winner: 0 })
-    expect(s.phase).toBe('fim')
-    expect(s.winner).toBe(0)
+  it('botão esquerdo segurado desde a pausa não saca até soltar e apertar de novo (Review Focus)', () => {
+    const s = createMatch(matchConfig({ humanTeam: null }))
+    simulate(s, serveWith(0, 'meio'), 3000, 'ponto') // time 0 pontua e saca de novo
+    let inServe = 0
+    const ev = simulate(
+      s,
+      (st) => {
+        if (st.phase === 'saque') inServe++
+        // Segura durante a pausa e solta 0,2 s depois de voltar ao saque.
+        return [{ ...IDLE, forte: inServe < 12 }, IDLE]
+      },
+      200,
+      'saque',
+    )
+    expect(ev.some((e) => e.type === 'saque')).toBe(false)
+    expect(s.phase).toBe('saque')
   })
 
-  it('ponto dá +10 na barra de quem pontuou', () => {
-    const s = createMatch(matchConfig())
-    simulate(s, holdThenRelease(0, 500), 3000, 'ponto')
+  it('cancelButtons não gera borda: soltar depois não saca', () => {
+    const s = createMatch(matchConfig({ humanTeam: null }))
+    simulate(s, () => [{ ...IDLE, forte: true }, IDLE], 10)
+    cancelButtons(s, 0)
+    const ev = simulate(s, standStill, 60)
+    expect(ev.some((e) => e.type === 'saque')).toBe(false)
+  })
+
+  it('11×10 + ponto encerra o set; ponto dá +10 na barra', () => {
+    const s = createMatch(matchConfig({ humanTeam: null }))
+    s.score.points = [11, 10]
+    const ev = simulate(s, serveWith(0), 3000, 'fimDeSet')
+    expect(ev).toContainEqual({ type: 'fimDeSet', winner: 0 })
+    expect(s.phase).toBe('fim')
     expect(s.meter[0]).toBe(10)
   })
 })
