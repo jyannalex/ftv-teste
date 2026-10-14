@@ -84,6 +84,8 @@ export class MatchScene extends Phaser.Scene {
   /** Qual botão cada dedo está segurando. */
   private pointers = new PointerRouter<ButtonName | -1 | 1>((t, down) => this.press(t, down))
   private sharkButton?: Phaser.GameObjects.Container
+  /** Rótulo do botão esquerdo: FORTE ou DEFENDER. */
+  private leftLabel?: Phaser.GameObjects.Text
   private marks!: GroundMarks
   private slowFx!: SlowMoFx
   /** Última entrada do jogador (para a mira na tela). */
@@ -193,6 +195,12 @@ export class MatchScene extends Phaser.Scene {
         if (label) this.hud.float(label[0], toScreenX(a.x), toScreenY(2.6), label[1])
         break
       }
+      case 'defesa': {
+        const a = s.athletes[e.athleteId]
+        if (e.perfeita) this.hud.banner('DEFESAÇA!', '#80deea', 52)
+        else if (a.team === s.config.humanTeam) this.hud.float('DEFENDEU!', toScreenX(a.x), toScreenY(2.6), '#80deea')
+        break
+      }
       case 'sharkataque': {
         const a = s.athletes[e.athleteId]
         sharkEffect(this, toScreenX(s.ball.x), toScreenY(s.ball.y), a.team === 0 ? 1 : -1)
@@ -243,8 +251,17 @@ export class MatchScene extends Phaser.Scene {
     } else this.slowFx.hide()
     this.ballView.draw(s.ball, dt)
     this.sharkButton?.setVisible(isMeterFull(s.meter[0]))
+    // Ataque vindo para o seu time: o botão esquerdo vira DEFENDER, piscando.
+    const defending = this.defending()
+    this.leftLabel?.setText(defending ? 'DEFENDER' : 'FORTE').setColor(defending && Math.floor(this.time.now / 150) % 2 ? '#80deea' : '#ffffff')
     this.hud.update(s, marker, dt)
     this.updateTips()
+  }
+
+  /** Um ataque do adversário está vindo para o 1º toque do jogador. */
+  private defending(): boolean {
+    const p = this.state.plan
+    return this.state.phase === 'rally' && p !== null && p.team === 0 && p.touchIndex === 1 && p.incoming !== null
   }
 
   /** Onde a bola vai cair (sombra na areia), durante o rally. */
@@ -274,7 +291,8 @@ export class MatchScene extends Phaser.Scene {
     let text = ''
     if (s.slowMo) text = ''
     else if (s.phase === 'saque' && s.score.servingTeam === 0) text = 'Segure FORTE e solte para sacar  ·  ◀ ▶ mira'
-    else if (plan?.team === 0) text = 'Use ◀ ▶ para ir até a sombra da bola'
+    else if (this.defending()) text = 'Ataque vindo! Fique perto e aperte DEFENDER (J) na hora'
+    else if (plan?.team === 0) text = 'Use ◀ ▶ para ir até a sombra da bola  ·  W troca o atleta'
     tip.setText(text).setVisible(text !== '')
   }
 
@@ -392,7 +410,9 @@ export class MatchScene extends Phaser.Scene {
     const touch = this.sys.game.device.input.touch
     const make = (x: number, y: number, r: number, label: string, key: string, color: number, target: ButtonName | -1 | 1) => {
       const c = this.add.circle(0, 0, r, color, 0.55).setStrokeStyle(4, 0xffffff, 0.8)
-      const items: Phaser.GameObjects.GameObject[] = [c, this.add.text(0, -8, label, { fontFamily: FONT, fontSize: r > 50 ? '16px' : '26px', color: '#ffffff' }).setOrigin(0.5)]
+      const text = this.add.text(0, -8, label, { fontFamily: FONT, fontSize: r > 50 ? '16px' : '26px', color: '#ffffff' }).setOrigin(0.5)
+      if (target === 'forte') this.leftLabel = text
+      const items: Phaser.GameObjects.GameObject[] = [c, text]
       if (!touch) items.push(this.add.text(0, 16, key, { fontFamily: FONT, fontSize: '14px', color: '#ffffffaa' }).setOrigin(0.5))
       const box = this.add.container(x, y, items).setSize(r * 2, r * 2).setInteractive(new Phaser.Geom.Circle(r, r, r), Phaser.Geom.Circle.Contains)
       box.on('pointerdown', (p: Phaser.Input.Pointer) => this.pointers.down(p.id, target))
@@ -401,6 +421,7 @@ export class MatchScene extends Phaser.Scene {
       box.on('pointerout', (p: Phaser.Input.Pointer) => this.pointers.out(p.id, target))
       return box
     }
+    make(140, 548, 34, '⇄', '[W]', 0x5e35b1, 'troca')
     make(80, 652, 46, '◀', '[A]', 0x37474f, -1)
     make(200, 652, 46, '▶', '[D]', 0x37474f, 1)
     make(1060, 652, 58, 'FORTE', '[J]', 0xc62828, 'forte')
@@ -427,6 +448,7 @@ export class MatchScene extends Phaser.Scene {
       KeyJ: 'forte',
       KeyK: 'pingo',
       Space: 'shark',
+      KeyW: 'troca',
     }
     kb.on('keydown', (ev: KeyboardEvent) => {
       if (ev.repeat) return

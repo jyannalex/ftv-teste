@@ -7,16 +7,18 @@ Jogo de futevôlei 2x2 para navegador e celular. Você joga contra o computador 
 | Ação | Celular | Teclado |
 |---|---|---|
 | Mover | ◀ ▶ (canto esquerdo) | A/D ou ← → |
-| Saque e ataque forte | botão FORTE | J |
+| Trocar o atleta controlado | botão ⇄ | W |
+| Saque, ataque forte e DEFENDER (quando vem ataque) | botão esquerdo (FORTE/DEFENDER) | J |
 | Pingo | botão PINGO | K |
 | Sharkataque (barra cheia) | botão 🦈 | Espaço |
 | Pausa | botão ‖ | Esc |
 
 - **Corra até a sombra da bola.** No lugar certo, o atleta recebe e levanta sozinho. Longe da bola, ela cai: no futevôlei não tem mergulho.
+- **Defesa:** quando o adversário ataca (forte ou Pingo), o botão esquerdo vira **DEFENDER**. Fique a até 1,5 m da bola e aperte na hora em que ela chega. Bem no tempo sai **DEFESAÇA!**, com passe perfeito e bônus na barra. O Sharkataque não tem defesa.
 - **Saque:** segure FORTE e solte. ◀ ▶ mira curto ou fundo, e o anel amarelo mostra onde a bola vai cair.
 - **Ataque em câmera lenta:** no 3º toque o atleta pula e o tempo desacelera. **FORTE** bate forte, **PINGO** cai logo atrás da rede e ◀ ▶ mira. Com a barra cheia, **🦈** solta o **Sharkataque**, que é imparável.
 - Toques, defesas e pontos enchem a barra do Sharkataque, que fica embaixo da tela.
-- **Você move os dois atletas, um de cada vez.** Quando a bola vem para o seu lado, o controle vai para quem vai tocar. Quando ela vai para o outro lado, o controle continua com quem você estava movendo. Quem não está sob controle vai sozinho para a posição padrão: perto da rede quando o seu time está com a bola e, na defesa, na posição (frente ou fundo) que o seu atleta deixou livre.
+- **Você move os dois atletas, um de cada vez.** Aperte **W** (⇄) para trocar quem você controla. Na recepção e na defesa, quem vai na bola é quem você está controlando; no 2º e no 3º toque o jogo troca sozinho, porque o mesmo atleta não pode tocar duas vezes seguidas. Quando ela vai para o outro lado, o controle continua com quem você estava movendo. Quem não está sob controle vai sozinho para a posição padrão: perto da rede quando o seu time está com a bola e, na defesa, na posição (frente ou fundo) que o seu atleta deixou livre.
 
 ## Desenvolvimento
 
