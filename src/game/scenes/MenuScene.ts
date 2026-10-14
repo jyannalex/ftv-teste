@@ -20,8 +20,10 @@ export class MenuScene extends Phaser.Scene {
     if (save.tournament?.status === 'andamento') button(this, 640, next(), 'Continuar campeonato', () => this.scene.start('Bracket'), { color: 0x2e7d32 })
     button(this, 640, next(), 'Campeonato', () => this.scene.start('TournamentSetup'))
     button(this, 640, next(), 'Partida Rápida', () => this.scene.start('QuickMatchSetup'))
-    button(this, 640, next(), 'Como Jogar', () => this.scene.start('HowToPlay'), { color: 0x00897b })
-    button(this, 640, next(), 'Opções', () => this.scene.start('Options'), { color: 0x546e7a })
+    button(this, 640, next(), `Meu Atleta: ${save.character.name}`, () => this.scene.start('Character'), { color: 0x6a1b9a })
+    const row = next()
+    button(this, 553, row, 'Como Jogar', () => this.scene.start('HowToPlay'), { w: 166, color: 0x00897b, size: 20 })
+    button(this, 727, row, 'Opções', () => this.scene.start('Options'), { w: 166, color: 0x546e7a, size: 20 })
 
     const titles = DIFFICULTIES.map((d) => `${d.name} ${save.titles[d.id]}`).join('  ·  ')
     this.add.text(640, 700, `🏆 Títulos: ${titles}`, { fontFamily: FONT, fontSize: '18px', color: '#ffffff' }).setOrigin(0.5, 1).setStroke('#0b1d33', 5)

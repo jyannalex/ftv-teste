@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { BootScene } from './game/scenes/BootScene'
 import { BracketScene } from './game/scenes/BracketScene'
+import { CharacterScene } from './game/scenes/CharacterScene'
 import { ChampionScene } from './game/scenes/ChampionScene'
 import { HowToPlayScene } from './game/scenes/HowToPlayScene'
 import { MatchScene } from './game/scenes/MatchScene'
@@ -30,6 +31,7 @@ const game = new Phaser.Game({
     ChampionScene,
     HowToPlayScene,
     OptionsScene,
+    CharacterScene,
   ],
 })
 

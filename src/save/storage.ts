@@ -1,4 +1,5 @@
 import { ARENAS, type ArenaId } from '../data/arenas'
+import { type Character, DEFAULT_CHARACTER, isCharacter } from '../data/character'
 import type { Difficulty } from '../data/difficulty'
 import { PLAYER_ID, type Tournament } from '../core/tournament'
 
@@ -7,17 +8,22 @@ export type SaveData = {
   tournament: Tournament | null
   unlockedArenas: ArenaId[]
   titles: Record<Difficulty, number>
-  options: { sound: boolean; music: boolean }
+  /** control: 'solo' = só o meu atleta (parceiro IA); 'dupla' = os dois atletas. */
+  options: { sound: boolean; music: boolean; control: ControlMode }
   tipsShown: boolean
+  character: Character
 }
+
+export type ControlMode = 'solo' | 'dupla'
 
 export const DEFAULT_SAVE: SaveData = {
   version: 1,
   tournament: null,
   unlockedArenas: ['praia'],
   titles: { facil: 0, medio: 0, dificil: 0 },
-  options: { sound: true, music: true },
+  options: { sound: true, music: true, control: 'solo' },
   tipsShown: false,
+  character: DEFAULT_CHARACTER,
 }
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -50,7 +56,8 @@ export function loadSave(store: KeyValueStore | null): { data: SaveData; availab
   if (raw === null) return { data: fresh(), available: true }
   try {
     const parsed: unknown = JSON.parse(raw)
-    return { data: isSaveData(parsed) ? parsed : fresh(), available: true }
+    const data = upgrade(parsed)
+    return { data: isSaveData(data) ? data : fresh(), available: true }
   } catch {
     return { data: fresh(), available: true }
   }
@@ -81,6 +88,17 @@ export function unlockForRound(data: SaveData, round: 0 | 1 | 2): SaveData {
   if (round >= 1) reached.add('clube')
   if (round >= 2) reached.add('arena')
   return { ...data, unlockedArenas: ARENAS.map((a) => a.id).filter((id) => reached.has(id)) }
+}
+
+/**
+ * Campos que vieram depois (personagem, modo de controle): save antigo ganha o padrão, e um personagem
+ * inválido volta ao padrão sem apagar o resto do progresso.
+ */
+function upgrade(v: unknown): unknown {
+  if (!isObj(v)) return v
+  const options = isObj(v.options) ? { control: 'solo', ...v.options } : v.options
+  if (isObj(options) && options.control !== 'solo' && options.control !== 'dupla') options.control = 'solo'
+  return { ...v, options, character: isCharacter(v.character) ? v.character : structuredClone(DEFAULT_CHARACTER) }
 }
 
 // ---- validação ----

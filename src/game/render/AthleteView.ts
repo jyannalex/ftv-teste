@@ -1,9 +1,10 @@
 import Phaser from 'phaser'
 import type { Athlete } from '../../core/match'
 import type { Pose } from './poses'
-import { depthOf, LAYER, project } from './view'
+import type { HairStyle } from '../../data/character'
+import { depthOf, LAYER, type Projected, project } from './view'
 
-export type HairStyle = 'curto' | 'rabo' | 'blackPower' | 'bone'
+export type { HairStyle }
 export type AthleteLook = { shirt: number; shorts: number; skin: number; hair: number; style: HairStyle; number: number }
 
 /**
@@ -58,6 +59,8 @@ export class AthleteView implements AthleteRenderer {
     scene: Phaser.Scene,
     private look: AthleteLook,
     private facing: 1 | -1,
+    /** Projeção do mundo para a tela (a prévia da tela Meu Atleta usa uma própria). */
+    private view: (x: number, y: number, z: number) => Projected = project,
   ) {
     this.shadow = scene.add.ellipse(0, 0, 56, 16, 0x000000, 0.28).setDepth(LAYER.marks + 1)
     this.g = scene.add.graphics()
@@ -67,8 +70,15 @@ export class AthleteView implements AthleteRenderer {
       .setOrigin(0.5)
   }
 
+  /** Troca a aparência (prévia da tela Meu Atleta). */
+  setLook(look: AthleteLook): void {
+    this.look = look
+    const light = Phaser.Display.Color.IntegerToColor(look.shirt).v > 0.6
+    this.num.setText(String(look.number)).setColor(light ? '#1a1a24' : '#ffffff')
+  }
+
   draw(a: Athlete, p: Pose): void {
-    const ground = project(a.x, 0, a.z)
+    const ground = this.view(a.x, 0, a.z)
     const k = ground.k
     const w = k / BASE_K
     const depth = depthOf(a.z)
@@ -195,7 +205,7 @@ export class AthleteView implements AthleteRenderer {
 
   /** Ponto acima da cabeça (para o marcador do jogador controlado). */
   topOf(a: Athlete, p: Pose): { x: number; y: number } {
-    const top = project(a.x, HIP_H + p.rootY + TRUNK + HEAD_R * 2 + 0.35, a.z)
+    const top = this.view(a.x, HIP_H + p.rootY + TRUNK + HEAD_R * 2 + 0.35, a.z)
     return { x: top.x, y: top.y }
   }
 }

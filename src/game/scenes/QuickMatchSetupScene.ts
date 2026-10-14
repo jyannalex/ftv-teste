@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { ARENAS, type ArenaId } from '../../data/arenas'
 import { DIFFICULTIES, type Difficulty, quickMatchSkill } from '../../data/difficulty'
-import { AI_TEAMS, PLAYER_SHIRTS } from '../../data/teams'
+import { AI_TEAMS } from '../../data/teams'
 import { getSession } from '../session'
 import { menuBackground } from '../ui/background'
 import { button, FONT, label, panel, title } from '../ui/button'
@@ -75,7 +75,7 @@ export class QuickMatchSetupScene extends Phaser.Scene {
       opponentId: opponent.id,
       skill: quickMatchSkill(this.difficulty),
       difficulty: this.difficulty,
-      player: t?.player ?? { name: 'Minha Dupla', shirt: PLAYER_SHIRTS[0] },
+      player: t?.player ?? { name: 'Minha Dupla', shirt: getSession().save.character.shirt },
     }
     this.scene.start('Match', data)
   }

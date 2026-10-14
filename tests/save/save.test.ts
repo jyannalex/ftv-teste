@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createRng } from '../../src/core/rng'
 import { createTournament, recordPlayerResult } from '../../src/core/tournament'
+import { DEFAULT_CHARACTER, HAIR_COLORS, SKIN_TONES } from '../../src/data/character'
 import { DEFAULT_SAVE, type KeyValueStore, loadSave, resetSave, SAVE_KEY, unlockForRound, writeSave } from '../../src/save/storage'
 
 const mem = (): KeyValueStore => {
@@ -67,5 +68,33 @@ describe('save', () => {
     writeSave(st, { ...DEFAULT_SAVE, tipsShown: true })
     expect(resetSave(st)).toEqual(DEFAULT_SAVE)
     expect(st.getItem(SAVE_KEY)).toBeNull()
+  })
+})
+
+describe('personagem e modo de controle no save', () => {
+  it('save antigo (sem personagem e sem controle) carrega com os padrões e mantém o resto', () => {
+    const st = mem()
+    const { character: _c, ...old } = { ...DEFAULT_SAVE, tipsShown: true, options: { sound: false, music: true } }
+    st.setItem(SAVE_KEY, JSON.stringify(old))
+    const d = loadSave(st).data
+    expect(d.tipsShown).toBe(true)
+    expect(d.options).toEqual({ sound: false, music: true, control: 'solo' })
+    expect(d.character).toEqual(DEFAULT_CHARACTER)
+  })
+
+  it('personagem inválido volta ao padrão sem apagar o progresso', () => {
+    const st = mem()
+    st.setItem(SAVE_KEY, JSON.stringify({ ...DEFAULT_SAVE, titles: { facil: 2, medio: 0, dificil: 0 }, character: { name: 5, number: 300 } }))
+    const d = loadSave(st).data
+    expect(d.titles.facil).toBe(2)
+    expect(d.character).toEqual(DEFAULT_CHARACTER)
+  })
+
+  it('ida e volta com personagem e controle', () => {
+    const st = mem()
+    const character = { name: 'Zé', skin: SKIN_TONES[1], hair: HAIR_COLORS[2], style: 'blackPower' as const, shirt: 0x1976d2, number: 23 }
+    const d = { ...DEFAULT_SAVE, options: { ...DEFAULT_SAVE.options, control: 'dupla' as const }, character }
+    writeSave(st, d)
+    expect(loadSave(st).data).toEqual(d)
   })
 })

@@ -1,5 +1,5 @@
 import { BALANCE } from '../data/balance'
-import { planeDist, reachOf, replan, setAction } from './contact'
+import { isPartnerAI, planeDist, reachDist, reachOf, replan, setAction } from './contact'
 import type { AthleteAction, ContactPlan, MatchEvent, MatchState, TeamInput } from './match'
 import { partner, registerTouch } from './rules'
 import { addMeter, isMeterFull } from './specialMeter'
@@ -97,7 +97,7 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
   if (plan.incoming && plan.touchIndex === 1) return defend(s, plan, inputs, events)
   if (s.time < plan.tIdeal) return
 
-  if (planeDist(s.athletes[plan.athleteId], plan) <= reachOf(s, plan.athleteId)) {
+  if (reachDist(s.athletes[plan.athleteId], plan) <= reachOf(s, plan.athleteId)) {
     const action: TouchAction = plan.touchIndex === 3 ? (plan.choice ?? 'fraco') : AUTO[plan.touchIndex]
     executeTouch(s, plan, action, aimFromInput(team, inputs[team]), events)
     return
@@ -107,20 +107,24 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
 }
 
 /**
- * Defesa de ataque (forte/Pingo): precisa do botão DEFENDER (esquerdo) perto do contato e o atleta
- * a até 1,5 m da bola. Bem no tempo é DEFESAÇA (passe perfeito e bônus).
+ * Defesa de ataque (forte/Pingo). Dentro do alcance normal o atleta defende sozinho (passe comum);
+ * o botão DEFENDER perto do contato estica o alcance até `defense.reach` m e, bem no tempo, é DEFESAÇA.
  */
 function defend(s: MatchState, plan: ContactPlan, inputs: [TeamInput, TeamInput], events: MatchEvent[]): void {
   const def = BALANCE.defense
-  const press = s.buttons[plan.team].fortePressAt
+  const press = (isPartnerAI(s, plan.athleteId) ? s.partnerButtons : s.buttons[plan.team]).fortePressAt
   const offset = press === null ? Infinity : press - plan.tIdeal
   const pressed = press !== null && Math.abs(offset) <= def.window && press >= plan.createdAt
-  const d = planeDist(s.athletes[plan.athleteId], plan)
+  const d = reachDist(s.athletes[plan.athleteId], plan)
   if (pressed && s.time >= plan.tIdeal && d <= def.reach) {
     const perfeita = Math.abs(offset) <= def.perfect
     if (perfeita) s.meter[plan.team] = addMeter(s.meter[plan.team], BALANCE.meter.defesaPerfeita)
     events.push({ type: 'defesa', athleteId: plan.athleteId, perfeita })
     executeTouch(s, plan, 'passe', aimFromInput(plan.team, inputs[plan.team]), events, undefined, perfeita)
+    return
+  }
+  if (!pressed && s.time >= plan.tIdeal && d <= reachOf(s, plan.athleteId)) {
+    executeTouch(s, plan, 'passe', aimFromInput(plan.team, inputs[plan.team]), events)
     return
   }
   if (s.time > plan.tIdeal + def.window) {

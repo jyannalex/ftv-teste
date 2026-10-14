@@ -80,7 +80,8 @@ function axisInput(gap: number, v: number): -1 | 0 | 1 {
 
 export type AIController = { think(s: MatchState): TeamInput }
 
-export function createAI(team: Side, skill: number, personality: Personality, rng: Rng): AIController {
+/** shark: false → nunca usa o Sharkataque (parceiro do jogador: o especial fica com ele). */
+export function createAI(team: Side, skill: number, personality: Personality, rng: Rng, opts: { shark?: boolean } = {}): AIController {
   const p = skillParams(skill)
   const sign = sideSign(team)
   let decision: Decision | null = null
@@ -98,7 +99,7 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
     const deep = Math.min(...defenders.map((d) => d.d)) > DEEP_DEFENSE
     const pingoChance = (reads ? (deep ? 1 : 0) : RANDOM_PINGO_CHANCE) + PINGO_BIAS[personality]
     const aim = rng.next() < p.readChance ? bestTarget(defenders) : randomTarget(rng)
-    if (isMeterFull(s.meter[team])) return { attackButton: 'shark', aim }
+    if (opts.shark !== false && isMeterFull(s.meter[team])) return { attackButton: 'shark', aim }
     if (rng.next() < pingoChance) return { attackButton: 'pingo', aim: { aim: 'meio', lane: aim.lane } }
     return { attackButton: 'forte', aim }
   }

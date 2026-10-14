@@ -1,14 +1,14 @@
 import Phaser from 'phaser'
 import { createAI, type AIController, type Personality } from '../../core/ai'
-import { planeDist } from '../../core/contact'
+import { reachDist } from '../../core/contact'
 import { aimFromInput, type AimTarget, type TouchAction } from '../../core/touch'
 import { predictLanding } from '../../core/physics'
-import { type Athlete, cancelButtons, createMatch, IDLE, type TeamInput, type MatchEvent, matchConfig, type MatchState, step } from '../../core/match'
+import { type Athlete, cancelButtons, createMatch, DT, IDLE, type TeamInput, type MatchEvent, matchConfig, type MatchState, step } from '../../core/match'
 import { createRng } from '../../core/rng'
 import { type Side, sideSign } from '../../core/rules'
 import { BALANCE } from '../../data/balance'
 import type { ArenaId } from '../../data/arenas'
-import { ASSIST, type Difficulty } from '../../data/difficulty'
+import { ASSIST, type Difficulty, PARTNER_SKILL } from '../../data/difficulty'
 import { isMeterFull } from '../../core/specialMeter'
 import { AI_TEAMS, teamById } from '../../data/teams'
 import { type Audio, gameAudio } from '../audio/sound'
@@ -88,6 +88,8 @@ export class MatchScene extends Phaser.Scene {
   private cfg: MatchSceneData = DEFAULT_DATA
   private state!: MatchState
   private ai!: AIController
+  /** IA do parceiro do jogador (modo "só meu atleta"). */
+  private partnerAI: AIController | null = null
   private controls = new Controls()
   private stepper!: FixedStepper
   private athleteViews: AthleteRenderer[] = []
@@ -113,6 +115,8 @@ export class MatchScene extends Phaser.Scene {
   private arena!: ArenaRuntime
   private trail!: BallTrail
   private tipText?: Phaser.GameObjects.Text
+  /** Nome do personagem acima do atleta do jogador. */
+  private nameTag!: Phaser.GameObjects.Text
   private audio!: Audio
 
   constructor() {
@@ -136,8 +140,12 @@ export class MatchScene extends Phaser.Scene {
     const personality: Personality = opponent.personality
     const seed = Math.floor(Math.random() * 1e9)
     const assist = ASSIST[this.cfg.difficulty]
-    this.state = createMatch(matchConfig({ seed, humanTeam: 0, humanReach: assist.reach, slowMoSec: assist.slowMoSec }))
+    const save = getSession().save
+    const control = save.options.control
+    this.state = createMatch(matchConfig({ seed, humanTeam: 0, humanReach: assist.reach, slowMoSec: assist.slowMoSec, control }))
     this.ai = createAI(1, this.cfg.skill, personality, createRng(seed + 1))
+    // O parceiro joga sozinho, mas não gasta o Sharkataque: o especial fica com o jogador.
+    this.partnerAI = control === 'solo' ? createAI(0, PARTNER_SKILL, 'equilibrado', createRng(seed + 2), { shark: false }) : null
 
     this.arena = drawArena(this, this.cfg.arena)
     drawCourt(this, COURT_COLORS[this.cfg.arena])
@@ -150,13 +158,23 @@ export class MatchScene extends Phaser.Scene {
       { shirt: opponent.shirt, shorts: opponent.shorts },
     ]
     for (const a of this.state.athletes) {
-      const look = { ...looks[a.id], skin: SKINS[a.id], hair: HAIRS[a.id], style: STYLES[a.id], number: NUMBERS[a.id] }
+      const me = save.character
+      // O atleta 0 é o personagem do jogador (tela Meu Atleta).
+      const look =
+        a.id === 0
+          ? { ...looks[0], skin: me.skin, hair: me.hair, style: me.style, number: me.number }
+          : { ...looks[a.id], skin: SKINS[a.id], hair: HAIRS[a.id], style: STYLES[a.id], number: NUMBERS[a.id] }
       this.athleteViews.push(new AthleteView(this, look, a.team === 0 ? 1 : -1))
     }
     drawNet(this)
     this.trail = new BallTrail(this)
     this.ballView = new BallView(this)
     this.hud = new Hud(this, [this.cfg.player.name, opponent.name])
+    this.nameTag = this.add
+      .text(0, 0, save.character.name, { fontFamily: FONT, fontSize: '16px', color: '#ffe14d' })
+      .setOrigin(0.5, 1)
+      .setStroke('#0b1d33', 5)
+      .setDepth(LAYER.fx)
     this.slowFx = new SlowMoFx(this)
     this.createButtons()
     this.createKeyboard()
@@ -200,7 +218,9 @@ export class MatchScene extends Phaser.Scene {
   private tick(): void {
     const s = this.state
     this.lastHuman = this.controls.consume()
-    const events = step(s, [this.lastHuman, s.phase === 'fim' ? IDLE : this.ai.think(s)])
+    const done = s.phase === 'fim'
+    const partner = this.partnerAI && !done ? this.partnerAI.think(s) : IDLE
+    const events = step(s, [this.lastHuman, done ? IDLE : this.ai.think(s)], DT, partner)
     for (const e of events) this.onEvent(e)
   }
 
@@ -291,13 +311,16 @@ export class MatchScene extends Phaser.Scene {
     const defending = this.defending()
     this.leftLabel?.setText(defending ? 'DEFENDER' : 'FORTE').setColor(defending && Math.floor(this.time.now / 150) % 2 ? '#80deea' : '#ffffff')
     this.hud.update(s, marker, dt)
+    const tag = marker as { x: number; y: number } | null
+    this.nameTag.setVisible(tag !== null)
+    if (tag) this.nameTag.setPosition(tag.x, tag.y - 6)
     this.updateTips()
   }
 
   /** Um ataque do adversário está vindo para o 1º toque do jogador. */
   private defending(): boolean {
     const p = this.state.plan
-    return this.state.phase === 'rally' && p !== null && p.team === 0 && p.touchIndex === 1 && p.incoming !== null
+    return this.state.phase === 'rally' && p !== null && p.team === 0 && p.touchIndex === 1 && p.incoming !== null && p.athleteId === this.state.controlled
   }
 
   /** Círculo de alcance do atleta controlado; vermelho quando a bola vai chegar dentro dele. */
@@ -308,7 +331,7 @@ export class MatchScene extends Phaser.Scene {
     const plan = s.phase === 'rally' ? s.plan : null
     const mine = plan !== null && plan.athleteId === a.id
     const r = mine && plan.incoming && plan.touchIndex === 1 ? BALANCE.defense.reach : s.config.humanReach
-    return { x: a.x, z: a.z, r, hot: mine && planeDist(a, plan) <= r }
+    return { x: a.x, z: a.z, r, hot: mine && reachDist(a, plan) <= r }
   }
 
   /** Onde a bola vai cair, durante o rally. */
@@ -342,7 +365,8 @@ export class MatchScene extends Phaser.Scene {
     if (s.slowMo) text = ''
     else if (s.phase === 'saque' && s.score.servingTeam === 0) text = 'Segure FORTE e solte para sacar  ·  direção = mira'
     else if (this.defending()) text = 'Ataque vindo! Fique perto e aperte DEFENDER (J) na hora'
-    else if (plan?.team === 0) text = 'Leve o círculo até a marca da bola  ·  Q troca o atleta'
+    else if (plan?.team === 0 && plan.athleteId !== s.controlled) text = 'Essa é do parceiro: ele vai sozinho'
+    else if (plan?.team === 0) text = s.config.control === 'dupla' ? 'Leve o círculo até a marca da bola  ·  Q troca o atleta' : 'Leve o círculo até a marca da bola'
     tip.setText(text).setVisible(text !== '')
   }
 
@@ -442,7 +466,7 @@ export class MatchScene extends Phaser.Scene {
       return box
     }
     this.joystick = new Joystick(this, 130, 600, 74, (v) => (v ? this.controls.setStick(v.x, v.z) : this.controls.setStick(null)))
-    make(290, 430, 34, '⇄', '[Q]', 0x5e35b1, 'troca')
+    if (this.state.config.control === 'dupla') make(290, 430, 34, '⇄', '[Q]', 0x5e35b1, 'troca')
     make(1060, 652, 58, 'FORTE', '[J]', 0xc62828, 'forte')
     make(1190, 652, 58, 'PINGO', '[K]', 0x2e7d32, 'pingo')
     this.sharkButton = make(1125, 540, 44, '🦈', '[Espaço]', 0x00838f, 'shark').setVisible(false)

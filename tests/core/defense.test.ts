@@ -39,31 +39,37 @@ describe('defesa com botão DEFENDER', () => {
     expect(attackOn(0.5).plan).toMatchObject({ incoming: 'forte', touchIndex: 1 })
   })
 
-  it('apertar na hora (±0,07 s) a até 1,5 m: DEFESAÇA e passe', () => {
+  it('apertar na hora (±0,09 s) a 1,2 m: DEFESAÇA e passe', () => {
     const ev = defendAt(attackOn(1.2), 0)
     expect(ev.find((e): e is Toque => e.type === 'toque')?.action).toBe('passe')
     expect(ev).toContainEqual(expect.objectContaining({ type: 'defesa', perfeita: true }))
   })
 
-  it('apertar 0,15 s atrasado: defende, mas não é perfeita', () => {
-    const ev = defendAt(attackOn(0.5), 0.15)
+  it('apertar 0,15 s adiantado: defende, mas não é perfeita', () => {
+    const ev = defendAt(attackOn(0.5), -0.15)
     expect(ev).toContainEqual(expect.objectContaining({ type: 'defesa', perfeita: false }))
   })
 
-  it('apertar 0,3 s antes: não defende', () => {
-    const ev = defendAt(attackOn(0.5), -0.3)
+  it('fora do alcance normal (1,8 m) e apertando 0,5 s antes: não defende', () => {
+    const ev = defendAt(attackOn(1.8), -0.5)
     expect(ev.some((e) => e.type === 'toque')).toBe(false)
   })
 
-  it('perto da bola mas sem apertar: não defende (ataque exige o botão)', () => {
+  it('fora do alcance normal (1,8 m): o botão na hora estica o alcance e defende', () => {
+    const ev = defendAt(attackOn(1.8), 0)
+    expect(ev).toContainEqual(expect.objectContaining({ type: 'defesa' }))
+  })
+
+  it('perto da bola sem apertar: defende sozinho (passe comum, sem DEFESAÇA)', () => {
     const s = attackOn(0.2)
     const ev: MatchEvent[] = []
-    for (let i = 0; i < 300 && !ev.some((e) => e.type === 'ponto'); i++) ev.push(...step(s, [IDLE, IDLE]))
-    expect(ev.some((e) => e.type === 'toque')).toBe(false)
+    for (let i = 0; i < 300 && !ev.some((e) => e.type === 'ponto' || e.type === 'toque'); i++) ev.push(...step(s, [IDLE, IDLE]))
+    expect(ev.find((e): e is Toque => e.type === 'toque')?.action).toBe('passe')
+    expect(ev.some((e) => e.type === 'defesa')).toBe(false)
   })
 
-  it('longe demais (2 m): apertar na hora não defende', () => {
-    const ev = defendAt(attackOn(2), 0)
+  it('longe demais (2,5 m): apertar na hora não defende', () => {
+    const ev = defendAt(attackOn(2.5), 0)
     expect(ev.some((e) => e.type === 'toque')).toBe(false)
   })
 
@@ -119,5 +125,19 @@ describe('bola que toca o chão para ali', () => {
     s.plan = planContact(s)
     const ev = simulate(s, standStill, 300, 'ponto')
     expect(ev).toContainEqual({ type: 'ponto', winner: 1, reason: 'chao' })
+  })
+})
+
+describe('alcance ao longo da trajetória', () => {
+  it('parado sobre a marca de queda (longe do ponto de contato) ainda pega a bola', () => {
+    const s = incomingBall(4, { humanTeam: 1 })
+    s.ball = { x: 1, y: 2.5, z: 0, vx: 7, vy: -1, vz: 0 } // bola rápida e baixa, como um ataque
+    s.plan = planContact(s)
+    const p = s.plan!
+    s.controlled = p.athleteId
+    Object.assign(s.athletes[p.athleteId], { x: p.landX, z: p.landZ, vx: 0, vz: 0 })
+    expect(Math.hypot(p.landX - p.x, p.landZ - p.z)).toBeGreaterThan(s.config.humanReach)
+    const ev = simulate(s, standStill, 300, 'toque')
+    expect(ev.some((e) => e.type === 'toque')).toBe(true)
   })
 })

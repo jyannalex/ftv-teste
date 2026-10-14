@@ -1,5 +1,5 @@
 import { BALANCE } from '../data/balance'
-import type { Athlete, AthleteAction, ContactPlan, MatchState, TeamInput } from './match'
+import { type Athlete, type AthleteAction, type ContactPlan, IDLE, type MatchState, type TeamInput } from './match'
 import type { Edges } from './resolve'
 import { positionAt, predictLanding, timeToHeight } from './physics'
 import { partner, type Side, sideOf, sideSign, teamOf } from './rules'
@@ -28,8 +28,8 @@ export function planContact(s: MatchState): ContactPlan | null {
   if (continuing && t.lastAthlete !== null) {
     athleteId = partner(t.lastAthlete)
     touchIndex = (t.count + 1) as 2 | 3
-  } else if (team === s.config.humanTeam && s.controlled !== null && teamOf(s.controlled) === team) {
-    // 1º toque do jogador: vai quem ele está controlando (troca com W).
+  } else if (team === s.config.humanTeam && s.config.control === 'dupla' && s.controlled !== null && teamOf(s.controlled) === team) {
+    // 1º toque do jogador: vai quem ele está controlando (troca com Q).
     athleteId = s.controlled
     touchIndex = 1
   } else {
@@ -65,6 +65,8 @@ export function planContact(s: MatchState): ContactPlan | null {
     x: chosen.x,
     y: chosen.y,
     z: chosen.z,
+    landX: landing.x,
+    landZ: landing.z,
     tIdeal: s.time + chosen.dt,
     createdAt: s.time,
     incoming,
@@ -76,7 +78,7 @@ export function planContact(s: MatchState): ContactPlan | null {
 /** Botão W: troca o atleta controlado; se a bola vem para o 1º toque, quem vai é o novo controlado. */
 export function switchControlled(s: MatchState, edges: [Edges, Edges]): void {
   const team = s.config.humanTeam
-  if (team === null || !edges[team].trocaDown || s.slowMo || s.controlled === null) return
+  if (team === null || s.config.control === 'solo' || !edges[team].trocaDown || s.slowMo || s.controlled === null) return
   const plan = s.plan
   // 2º e 3º toque: o atleta é obrigatório pela regra.
   if (plan && plan.team === team && plan.touchIndex > 1) return
@@ -85,10 +87,15 @@ export function switchControlled(s: MatchState, edges: [Edges, Edges]): void {
   if (plan && plan.team === team) plan.athleteId = s.controlled
 }
 
+/** Modo solo: o atleta é o parceiro do jogador, movido pela IA dele. */
+export function isPartnerAI(s: MatchState, athleteId: number): boolean {
+  return s.config.control === 'solo' && teamOf(athleteId) === s.config.humanTeam && athleteId !== s.controlled
+}
+
 /** Replaneja depois de qualquer mudança de trajetória e troca o atleta controlado. */
 export function replan(s: MatchState): void {
   s.plan = planContact(s)
-  if (s.plan && s.plan.team === s.config.humanTeam) s.controlled = s.plan.athleteId
+  if (s.plan && s.plan.team === s.config.humanTeam && s.config.control === 'dupla') s.controlled = s.plan.athleteId
 }
 
 const MIN_X = 0.3
@@ -98,6 +105,18 @@ const SEEK_GAIN = 6
 
 /** Distância no chão (plano x, z). */
 export const planeDist = (a: { x: number; z: number }, b: { x: number; z: number }): number => Math.hypot(a.x - b.x, a.z - b.z)
+
+/**
+ * Distância do atleta à trajetória da bola no chão, do ponto de contato até o pouso: quem está
+ * embaixo da bola (inclusive sobre a marca de queda) alcança, não só quem está no ponto exato.
+ */
+export function reachDist(a: { x: number; z: number }, p: ContactPlan): number {
+  const dx = p.landX - p.x
+  const dz = p.landZ - p.z
+  const len2 = dx * dx + dz * dz
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((a.x - p.x) * dx + (a.z - p.z) * dz) / len2))
+  return Math.hypot(a.x - (p.x + t * dx), a.z - (p.z + t * dz))
+}
 
 function clampToSide(a: Athlete): void {
   const sign = sideSign(a.team)
@@ -165,7 +184,7 @@ function seek(a: Athlete, team: Side, target: { x: number; z: number }, speed: n
  * Move os atletas. Time humano: o controlado anda pela entrada; o parceiro vai sozinho para a posição base.
  * Time da IA: o designado anda pela entrada da IA; os demais vão para a posição base.
  */
-export function updatePositions(s: MatchState, inputs: [TeamInput, TeamInput], dt: number): void {
+export function updatePositions(s: MatchState, inputs: [TeamInput, TeamInput], dt: number, partner: TeamInput = IDLE): void {
   const plan = s.plan
   const slow = s.slowMo !== null
   const bp = BALANCE.basePos
@@ -186,11 +205,14 @@ export function updatePositions(s: MatchState, inputs: [TeamInput, TeamInput], d
     const i = inputs[team]
     const locked = s.buttons[team].moveLock !== null
     const [vx, vz] = slow || locked ? [0, 0] : inputVelocity(i.move, i.moveZ, BALANCE.move.manual)
+    const partnerLocked = s.partnerButtons.moveLock !== null
+    const [pvx, pvz] = slow || partnerLocked ? [0, 0] : inputVelocity(partner.move, partner.moveZ, BALANCE.move.manual)
 
     for (const ath of mates) {
       if (slow && s.slowMo?.athleteId === ath.id) continue // o atacante está no ar
       const driven = human ? ath.id === s.controlled : hasBall && plan.athleteId === ath.id
       if (driven) drive(ath, vx, vz, dt)
+      else if (isPartnerAI(s, ath.id) && hasBall && plan.athleteId === ath.id) drive(ath, pvx, pvz, dt)
       else seek(ath, team, baseOf(ath), BALANCE.move.base, dt)
     }
   }

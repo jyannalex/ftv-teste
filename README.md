@@ -4,10 +4,16 @@ Jogo de futevôlei 2x2 para navegador e celular, com câmera alta em perspectiva
 
 ## Como jogar
 
+**Meu Atleta** (no menu): crie o seu personagem (nome, pele, cabelo, camisa e número). Ele fica salvo no aparelho e entra em quadra como o seu atleta.
+
+**Controle** (em Opções):
+- **Só meu atleta** (padrão): você move só o seu personagem. O parceiro é da IA: recebe, levanta, defende e ataca sozinho, mas não gasta o seu Sharkataque. No 1º toque vai quem estiver mais perto da bola.
+- **Os dois atletas:** você move os dois, um de cada vez, e troca com Q (⇄).
+
 | Ação | Celular | Teclado |
 |---|---|---|
 | Mover (8 direções) | joystick (canto esquerdo) | WASD ou setas |
-| Trocar o atleta controlado | botão ⇄ | Q |
+| Trocar o atleta controlado (modo "os dois atletas") | botão ⇄ | Q |
 | Saque, ataque forte e DEFENDER (quando vem ataque) | botão esquerdo (FORTE/DEFENDER) | J |
 | Pingo | botão PINGO | K |
 | Sharkataque (barra cheia) | botão 🦈 | Espaço |

@@ -15,9 +15,12 @@ export const DIFFICULTY_SKILL: Record<Difficulty, [number, number, number]> = {
 
 export const quickMatchSkill = (d: Difficulty): number => DIFFICULTY_SKILL[d][1]
 
+/** Nível da IA que joga como parceiro do jogador no modo "só meu atleta". */
+export const PARTNER_SKILL = 0.75
+
 /** Ajuda ao jogador por dificuldade: alcance do toque automático e duração real da câmera lenta. */
 export const ASSIST: Record<Difficulty, { reach: number; slowMoSec: number }> = {
-  facil: { reach: 1.1, slowMoSec: 2.0 },
-  medio: { reach: 0.9, slowMoSec: 1.5 },
-  dificil: { reach: 0.8, slowMoSec: 1.2 },
+  facil: { reach: 1.9, slowMoSec: 2.0 },
+  medio: { reach: 1.6, slowMoSec: 1.5 },
+  dificil: { reach: 1.3, slowMoSec: 1.2 },
 }

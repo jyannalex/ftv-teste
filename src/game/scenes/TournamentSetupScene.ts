@@ -22,6 +22,8 @@ export class TournamentSetupScene extends Phaser.Scene {
     title(this, 70, 'Novo Campeonato', 48)
     panel(this, 640, 380, 820, 520)
     const last = getSession().save.tournament
+    // A camisa da dupla começa com a do personagem (tela Meu Atleta).
+    this.shirt = getSession().save.character.shirt
 
     label(this, 640, 160, 'Dificuldade')
     const diffButtons: { d: (typeof DIFFICULTIES)[number]; x: number; btn?: Phaser.GameObjects.Container }[] = DIFFICULTIES.map(

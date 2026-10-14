@@ -1,5 +1,5 @@
 import { BALANCE } from '../data/balance'
-import { replan, setAction, switchControlled, updatePositions } from './contact'
+import { isPartnerAI, replan, setAction, switchControlled, updatePositions } from './contact'
 import { type Ball, bounceDead, launchVelocity, stepBall } from './physics'
 import { type Edges, resolveContact, touchStillPossible } from './resolve'
 import { createRng, type Rng } from './rng'
@@ -46,10 +46,15 @@ export type MatchConfig = {
   humanReach: number
   /** Duração real da câmera lenta do ataque do jogador (s). */
   slowMoSec: number
+  /**
+   * 'dupla': o jogador move os dois atletas (troca com Q). 'solo': só o atleta 0; o parceiro é da IA
+   * (entrada própria no step).
+   */
+  control: 'dupla' | 'solo'
 }
 
 export function matchConfig(p: Partial<MatchConfig> = {}): MatchConfig {
-  return { seed: 1, targetPoints: 12, humanTeam: 0, humanReach: BALANCE.reach, slowMoSec: 1.5, ...p }
+  return { seed: 1, targetPoints: 12, humanTeam: 0, humanReach: BALANCE.reach, slowMoSec: 1.5, control: 'dupla', ...p }
 }
 
 export type AthleteAction =
@@ -99,10 +104,13 @@ export type ContactPlan = {
   x: number
   y: number
   z: number
+  /** Onde a bola cairia sem o toque: o atleta alcança em qualquer ponto entre o contato e o pouso. */
+  landX: number
+  landZ: number
   /** Tempo absoluto da partida em que a bola chega ao ponto de contato. */
   tIdeal: number
   createdAt: number
-  /** Ataque que vem do outro time: pede o botão DEFENDER. */
+  /** Ataque que vem do outro time: DEFENDER dá mais alcance e a DEFESAÇA. */
   incoming: 'forte' | 'pingo' | null
   /** Escolha de ataque do 3º toque (a última borda de botão). */
   choice: 'forte' | 'pingo' | 'sharkataque' | null
@@ -124,6 +132,8 @@ export type MatchState = {
   touch: TouchState
   meter: [number, number]
   buttons: [ButtonTrack, ButtonTrack]
+  /** Botões da IA do parceiro do jogador (modo solo). */
+  partnerButtons: ButtonTrack
   lastAttack: { team: Side; kind: 'forte' | 'pingo' | 'shark' } | null
   plan: ContactPlan | null
   /** Câmera lenta do ataque do jogador. */
@@ -169,6 +179,7 @@ export function createMatch(config: MatchConfig): MatchState {
     touch: { team: null, count: 0, lastAthlete: null },
     meter: [0, 0],
     buttons: [freshButtons(), freshButtons()],
+    partnerButtons: freshButtons(),
     lastAttack: null,
     plan: null,
     slowMo: null,
@@ -207,9 +218,9 @@ function setupServe(s: MatchState): void {
   s.lastAttack = null
   s.plan = null
   s.slowMo = null
-  if (s.config.humanTeam === s.score.servingTeam) s.controlled = server
+  if (s.config.humanTeam === s.score.servingTeam && s.config.control === 'dupla') s.controlled = server
   // Botão já segurado (desde a pausa do ponto) não vale para o saque: precisa soltar e apertar de novo.
-  for (const b of s.buttons) {
+  for (const b of [...s.buttons, s.partnerButtons]) {
     b.forteDownAt = null
     b.moveLock = null
   }
@@ -229,30 +240,37 @@ export function cancelButtons(s: MatchState, team: Side): void {
 
 /** Atualiza os botões e devolve as bordas deste passo. */
 function trackButtons(s: MatchState, inputs: [TeamInput, TeamInput]): [Edges, Edges] {
-  return ([0, 1] as const).map((team) => {
-    const b = s.buttons[team]
-    const i = inputs[team]
-    const e: Edges = {
-      forteDown: i.forte && !b.forte,
-      forteUp: !i.forte && b.forte,
-      pingoDown: i.pingo && !b.pingo,
-      sharkDown: i.shark && !b.shark,
-      trocaDown: i.troca && !b.troca,
-    }
-    if (e.forteDown) {
-      b.fortePressAt = s.time
-      b.forteDownAt = s.time
-    }
-    b.forte = i.forte
-    b.pingo = i.pingo
-    b.shark = i.shark
-    b.troca = i.troca
-    if (b.moveLock && (i.move !== b.moveLock.move || i.moveZ !== b.moveLock.moveZ)) b.moveLock = null
-    return e
-  }) as [Edges, Edges]
+  return ([0, 1] as const).map((team) => trackOne(s, s.buttons[team], inputs[team])) as [Edges, Edges]
 }
 
-function serve(s: MatchState, target: AimTarget, events: MatchEvent[], held: TeamInput = IDLE): void {
+/** Atualiza um conjunto de botões e devolve as bordas deste passo. */
+function trackOne(s: MatchState, b: ButtonTrack, i: TeamInput): Edges {
+  const e: Edges = {
+    forteDown: i.forte && !b.forte,
+    forteUp: !i.forte && b.forte,
+    pingoDown: i.pingo && !b.pingo,
+    sharkDown: i.shark && !b.shark,
+    trocaDown: i.troca && !b.troca,
+  }
+  if (e.forteDown) {
+    b.fortePressAt = s.time
+    b.forteDownAt = s.time
+  }
+  b.forte = i.forte
+  b.pingo = i.pingo
+  b.shark = i.shark
+  b.troca = i.troca
+  if (b.moveLock && (i.move !== b.moveLock.move || i.moveZ !== b.moveLock.moveZ)) b.moveLock = null
+  return e
+}
+
+function serve(
+  s: MatchState,
+  target: AimTarget,
+  events: MatchEvent[],
+  held: TeamInput = IDLE,
+  track: ButtonTrack = s.buttons[s.score.servingTeam],
+): void {
   const team = s.score.servingTeam
   const sign = sideSign(team)
   const to = { x: -sign * BALANCE.serveDepth[target.aim], y: BALANCE.ballRadius, z: target.lane * BALANCE.laneZ }
@@ -262,7 +280,7 @@ function serve(s: MatchState, target: AimTarget, events: MatchEvent[], held: Tea
   // O saque conta como 3 toques: bola que não passa é falta de quem sacou.
   s.touch = { team, count: 3, lastAthlete: server }
   setAction(s.athletes[server], 'saque')
-  s.buttons[team].moveLock = { move: held.move, moveZ: held.moveZ }
+  track.moveLock = { move: held.move, moveZ: held.moveZ }
   events.push({ type: 'saque', athleteId: server })
   setPhase(s, 'rally')
   replan(s)
@@ -286,8 +304,11 @@ function endRally(s: MatchState, events: MatchEvent[]): void {
   s.ball = bounceDead(s.ball)
 }
 
-/** Avança a partida um passo fixo. Altera o estado recebido e devolve os eventos do passo. */
-export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): MatchEvent[] {
+/**
+ * Avança a partida um passo fixo. Altera o estado recebido e devolve os eventos do passo.
+ * `partner`: entrada da IA do parceiro do jogador (modo solo).
+ */
+export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT, partner: TeamInput = IDLE): MatchEvent[] {
   const events: MatchEvent[] = []
   if (s.phase === 'fim') return events
   const gdt = s.slowMo ? dt * BALANCE.slowMo.scale : dt
@@ -295,13 +316,18 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
   s.phaseT += gdt
   for (const a of s.athletes) a.actionT += gdt
   const edges = trackButtons(s, inputs)
+  const partnerEdges = trackOne(s, s.partnerButtons, partner)
 
   switch (s.phase) {
     case 'saque': {
       const team = s.score.servingTeam
-      const b = s.buttons[team]
+      // Modo solo: quando o saque é do parceiro, quem saca é a IA dele.
+      const byPartner = isPartnerAI(s, s.score.server)
+      const b = byPartner ? s.partnerButtons : s.buttons[team]
+      const e = byPartner ? partnerEdges : edges[team]
+      const input = byPartner ? partner : inputs[team]
       if (s.config.humanTeam !== team) switchControlled(s, edges)
-      if (edges[team].forteUp && b.forteDownAt !== null) serve(s, aimFromInput(team, inputs[team]), events, inputs[team])
+      if (e.forteUp && b.forteDownAt !== null) serve(s, aimFromInput(team, input), events, input, b)
       else if (s.phaseT >= BALANCE.autoServeSec) serve(s, { aim: 'meio', lane: 0 }, events)
       break
     }
@@ -313,8 +339,16 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
         replan(s)
       }
       switchControlled(s, edges)
-      resolveContact(s, inputs, edges, events)
-      updatePositions(s, inputs, gdt)
+      // Modo solo: no toque do parceiro valem a entrada e os botões da IA dele.
+      const plan = s.plan
+      if (plan && isPartnerAI(s, plan.athleteId)) {
+        const acting: [TeamInput, TeamInput] = [...inputs]
+        const actingEdges: [Edges, Edges] = [...edges]
+        acting[plan.team] = partner
+        actingEdges[plan.team] = partnerEdges
+        resolveContact(s, acting, actingEdges, events)
+      } else resolveContact(s, inputs, edges, events)
+      updatePositions(s, inputs, gdt, partner)
       if (r.landed) {
         // A bola que tocou o chão fica ali enquanto a defesa ainda pode acontecer; depois, quica (visual).
         if (touchStillPossible(s)) s.ball = { ...s.ball, vx: 0, vy: 0, vz: 0 }
