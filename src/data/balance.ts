@@ -34,4 +34,11 @@ export const BALANCE = {
   /** Saque automático se o sacador ficar parado. */
   autoServeSec: 8,
   serve: { fullMs: 800, overMs: 1000, apex: 5 },
+
+  /** Altura da bola no contato de cada parte do corpo (cabeça já com o pulo). */
+  contact: { chapa: 0.45, peito: 1.3, cabeca: 2.7 },
+  /** O pé do Sharkataque bate acima da cabeça. */
+  sharkExtraHeight: 0.3,
+  /** Posições base (distância da rede). */
+  basePos: { front: 3.5, back: 6.5, support: 1.5 },
 } as const

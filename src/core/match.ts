@@ -6,6 +6,7 @@ import {
   initialScore,
   type PointReason,
   partner,
+  registerTouch,
   resolveLanding,
   type ScoreState,
   type Side,
@@ -13,7 +14,9 @@ import {
   sideSign,
   type TouchState,
 } from './rules'
-import type { Grade, TouchAction } from './touch'
+import { planContact, updatePositions } from './contact'
+import { addMeter, isMeterFull } from './specialMeter'
+import { classifyHold, type Grade, gradeTiming, outgoing, type TouchAction, type Windows, windowsFor } from './touch'
 
 export const DT = 1 / 60
 
@@ -220,8 +223,88 @@ function serve(s: MatchState, holdMs: number, events: MatchEvent[]): void {
   onBallLaunched(s)
 }
 
-/** Ponto de extensão: chamado sempre que a trajetória da bola muda. */
-function onBallLaunched(_s: MatchState): void {}
+/** Chamado sempre que a trajetória da bola muda: replaneja o próximo toque. */
+function onBallLaunched(s: MatchState): void {
+  s.pending = null
+  s.plan = planContact(s)
+  if (s.plan && s.plan.team === s.config.humanTeam) s.controlled = s.plan.athleteId
+}
+
+function windowsOf(s: MatchState, plan: ContactPlan): Windows {
+  return windowsFor({
+    incomingForce: plan.incomingForce,
+    incomingShark: plan.incomingShark,
+    easyAssist: s.config.easyAssist && plan.team === s.config.humanTeam,
+  })
+}
+
+const TOUCH_ACTIONS: Record<1 | 2 | 3, TouchAction> = { 1: 'passe', 2: 'levantada', 3: 'devolucao' }
+
+/** Lê a entrada do time do plano e, se estiver na janela, agenda o toque. */
+function readTouchInput(s: MatchState, inputs: [TeamInput, TeamInput], released: [number | null, number | null]): void {
+  const plan = s.plan
+  if (!plan || s.pending || !plan.reachable) return
+  const pressed = inputs[plan.team].recepcao
+  const holdMs = released[plan.team]
+  if (!pressed && holdMs === null) return
+  const grade = gradeTiming(s.time - plan.tIdeal, windowsOf(s, plan))
+  if (grade === null) return
+  const executeAt = Math.max(s.time, plan.tIdeal)
+  if (pressed) {
+    s.pending = { action: TOUCH_ACTIONS[plan.touchIndex], grade, executeAt }
+    return
+  }
+  const hold = classifyHold(holdMs!)
+  if (hold.kind === 'pingo') {
+    s.pending = { action: 'pingo', grade, executeAt }
+    return
+  }
+  const shark = isMeterFull(s.meter[plan.team]) && Math.abs(plan.x) <= BALANCE.sharkMaxNetDist
+  s.pending = { action: shark ? 'sharkataque' : 'forte', grade, executeAt, force: hold.force, overpower: hold.overpower }
+}
+
+const ATHLETE_ACTION: Partial<Record<TouchAction, AthleteAction>> = { pingo: 'pingo', sharkataque: 'sharkataque' }
+
+function executeTouch(s: MatchState, plan: ContactPlan, p: PendingTouch, events: MatchEvent[]): void {
+  const team = plan.team
+  const shark = p.action === 'sharkataque'
+  const from = { x: plan.x, y: plan.y + (shark ? BALANCE.sharkExtraHeight : 0) }
+  const v = outgoing({ action: p.action, team, from, grade: p.grade, force: p.force, overpower: p.overpower }, s.rng)
+  s.ball = { ...from, vx: v.vx, vy: v.vy }
+  s.touch = registerTouch(s.touch, plan.athleteId)
+
+  if (p.grade === 'perfeito') s.meter[team] = addMeter(s.meter[team], BALANCE.meter.perfeito)
+  if (plan.incomingForce >= 0.5 || plan.incomingShark) s.meter[team] = addMeter(s.meter[team], BALANCE.meter.defesaForte)
+
+  events.push({ type: 'toque', athleteId: plan.athleteId, action: p.action, grade: p.grade })
+  if (shark) {
+    s.meter[team] = 0
+    events.push({ type: 'sharkataque', athleteId: plan.athleteId })
+  }
+  s.lastAttack =
+    p.action === 'forte' || shark ? { team, force: shark ? 1 : (p.force ?? 0), shark } : null
+  setAction(s.athletes[plan.athleteId], ATHLETE_ACTION[p.action] ?? plan.kind)
+  onBallLaunched(s)
+}
+
+/** Toques e erros de timing durante o rally. */
+function stepContacts(s: MatchState, inputs: [TeamInput, TeamInput], released: [number | null, number | null], events: MatchEvent[]): void {
+  readTouchInput(s, inputs, released)
+  const plan = s.plan
+  if (plan && s.pending && s.time >= s.pending.executeAt) {
+    executeTouch(s, plan, s.pending, events)
+  } else if (plan && !s.pending && s.time > plan.tIdeal + windowsOf(s, plan).ruim) {
+    events.push({ type: 'erroTiming', athleteId: plan.athleteId })
+    s.plan = null
+  }
+}
+
+/** Enquanto um toque ainda pode acontecer, a bola não "cai" (o toque sai do ponto planejado). */
+function touchStillPossible(s: MatchState): boolean {
+  const plan = s.plan
+  if (!plan || !plan.reachable) return false
+  return s.pending !== null || s.time <= plan.tIdeal + windowsOf(s, plan).ruim
+}
 
 function endRally(s: MatchState, events: MatchEvent[]): void {
   const { winner, reason } = resolveLanding(s.ball.x, s.touch)
@@ -265,7 +348,9 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
         events.push({ type: 'rede' })
         onBallLaunched(s)
       }
-      if (r.landed) endRally(s, events)
+      stepContacts(s, inputs, released, events)
+      updatePositions(s, dt)
+      if (r.landed && !touchStillPossible(s)) endRally(s, events)
       break
     }
     case 'ponto': {
