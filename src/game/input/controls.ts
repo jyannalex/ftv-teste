@@ -1,27 +1,40 @@
 import type { TeamInput } from '../../core/match'
 
-/** Estado dos dois botões, alimentado por toque e teclado, lido uma vez por passo. */
-export class Controls {
-  private recepcaoLatched = false
-  private ataqueDown = false
+export type ButtonName = 'forte' | 'pingo' | 'shark'
 
-  pressRecepcao(): void {
-    this.recepcaoLatched = true
+/** Estado dos controles (toque e teclado), lido uma vez por passo da simulação. */
+export class Controls {
+  private down: Record<ButtonName, boolean> = { forte: false, pingo: false, shark: false }
+  /** Apertado desde o último consumo: um toque rápido não se perde entre dois passos. */
+  private latched: Record<ButtonName, boolean> = { forte: false, pingo: false, shark: false }
+  /** Direções seguradas, a mais recente por último. */
+  private moves: (-1 | 1)[] = []
+
+  setButton(b: ButtonName, isDown: boolean): void {
+    if (isDown && !this.down[b]) this.latched[b] = true
+    this.down[b] = isDown
   }
 
-  setAtaque(down: boolean): void {
-    this.ataqueDown = down
+  setMove(dir: -1 | 1, isDown: boolean): void {
+    this.moves = this.moves.filter((m) => m !== dir)
+    if (isDown) this.moves.push(dir)
   }
 
   consume(): TeamInput {
-    const input = { recepcao: this.recepcaoLatched, ataque: this.ataqueDown }
-    this.recepcaoLatched = false
+    const input: TeamInput = {
+      move: this.moves.length ? this.moves[this.moves.length - 1] : 0,
+      forte: this.down.forte || this.latched.forte,
+      pingo: this.down.pingo || this.latched.pingo,
+      shark: this.down.shark || this.latched.shark,
+    }
+    this.latched = { forte: false, pingo: false, shark: false }
     return input
   }
 
-  /** Pausa, perda de foco ou dedo fora do botão: nada fica "preso". */
+  /** Pausa, perda de foco: nada fica segurado nem travado. */
   reset(): void {
-    this.recepcaoLatched = false
-    this.ataqueDown = false
+    this.down = { forte: false, pingo: false, shark: false }
+    this.latched = { forte: false, pingo: false, shark: false }
+    this.moves = []
   }
 }

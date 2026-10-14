@@ -74,7 +74,7 @@ export class QuickMatchSetupScene extends Phaser.Scene {
       arena: this.arena,
       opponentId: opponent.id,
       skill: quickMatchSkill(this.difficulty),
-      easyAssist: this.difficulty === 'facil',
+      difficulty: this.difficulty,
       player: t?.player ?? { name: 'Minha Dupla', shirt: PLAYER_SHIRTS[0] },
     }
     this.scene.start('Match', data)

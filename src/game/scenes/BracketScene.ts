@@ -55,7 +55,7 @@ export class BracketScene extends Phaser.Scene {
         arena: pm.arena,
         opponentId: pm.opponentId,
         skill: pm.skill,
-        easyAssist: t.difficulty === 'facil',
+        difficulty: t.difficulty,
         player: t.player,
       }
       button(this, 820, 640, `Jogar ${ROUND_NAMES[pm.round]}`, () => this.scene.start('Match', data), { color: 0x2e7d32 })

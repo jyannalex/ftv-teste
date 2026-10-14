@@ -1,27 +1,40 @@
 import { expect, it } from 'vitest'
 import { Controls } from '../../src/game/input/controls'
 
-it('recepção é entregue uma vez só', () => {
+it('toque rápido entre dois consumos não se perde (Review Focus)', () => {
   const c = new Controls()
-  c.pressRecepcao()
-  expect(c.consume().recepcao).toBe(true)
-  expect(c.consume().recepcao).toBe(false)
+  c.setButton('pingo', true)
+  c.setButton('pingo', false)
+  expect(c.consume().pingo).toBe(true)
+  expect(c.consume().pingo).toBe(false)
 })
 
-it('segurar e soltar o ataque, junto com recepção (dois dedos)', () => {
+it('botão segurado continua true até soltar', () => {
   const c = new Controls()
-  c.setAtaque(true)
-  c.pressRecepcao()
-  expect(c.consume()).toEqual({ recepcao: true, ataque: true })
-  expect(c.consume()).toEqual({ recepcao: false, ataque: true })
-  c.setAtaque(false)
-  expect(c.consume().ataque).toBe(false)
+  c.setButton('forte', true)
+  expect(c.consume().forte).toBe(true)
+  expect(c.consume().forte).toBe(true)
+  c.setButton('forte', false)
+  expect(c.consume().forte).toBe(false)
 })
 
-it('reset (pausa / dedo saiu do botão) solta o ataque (Review Focus 1)', () => {
+it('move segue a última direção segurada; soltar volta à outra ou a 0', () => {
   const c = new Controls()
-  c.setAtaque(true)
-  c.pressRecepcao()
+  c.setMove(-1, true)
+  expect(c.consume().move).toBe(-1)
+  c.setMove(1, true)
+  expect(c.consume().move).toBe(1)
+  c.setMove(1, false)
+  expect(c.consume().move).toBe(-1)
+  c.setMove(-1, false)
+  expect(c.consume().move).toBe(0)
+})
+
+it('reset solta tudo sem gerar toque (Review Focus)', () => {
+  const c = new Controls()
+  c.setButton('forte', true)
+  c.setButton('shark', true)
+  c.setMove(1, true)
   c.reset()
-  expect(c.consume()).toEqual({ recepcao: false, ataque: false })
+  expect(c.consume()).toEqual({ move: 0, forte: false, pingo: false, shark: false })
 })
