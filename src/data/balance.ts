@@ -26,4 +26,12 @@ export const BALANCE = {
   sharkMaxNetDist: 2.5,
   /** Além desta distância da rede, o ataque forte perde força e precisão. */
   attackFarDist: 3,
+
+  /** Posição x (em módulo) do sacador, atrás da linha de fundo. */
+  serveX: 9.5,
+  runSpeed: 6,
+  pointPauseSec: 1.5,
+  /** Saque automático se o sacador ficar parado. */
+  autoServeSec: 8,
+  serve: { fullMs: 800, overMs: 1000, apex: 5 },
 } as const
