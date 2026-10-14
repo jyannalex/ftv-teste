@@ -34,7 +34,7 @@ export const BALANCE = {
   pointPauseSec: 1.5,
   /** Saque automático se o sacador ficar parado. */
   autoServeSec: 8,
-  serve: { fullMs: 800, overMs: 1000, apex: 5 },
+  serve: { fullMs: 800, overMs: 1000, apex: 4.3 },
 
   /** Altura da bola no contato de cada parte do corpo (cabeça já com o pulo). */
   contact: { chapa: 0.45, peito: 1.3, cabeca: 2.7 },

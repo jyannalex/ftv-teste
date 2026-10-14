@@ -13,6 +13,8 @@ export class Hud {
   private touchText: Phaser.GameObjects.Text
   private marker: Phaser.GameObjects.Triangle
   private t = 0
+  /** Quando a faixa atual libera a tela (ms do relógio da cena). */
+  private bannerFreeAt = 0
 
   constructor(
     private scene: Phaser.Scene,
@@ -73,12 +75,17 @@ export class Hud {
 
   /** Faixa grande no centro ("PONTO!", "SHARKATAQUE!"). */
   banner(text: string, color = '#ffffff', size = 56): void {
+    // Faixas em fila: a seguinte espera a anterior aparecer o suficiente para ser lida.
+    const now = this.scene.time.now
+    const delay = Math.max(0, this.bannerFreeAt - now)
+    this.bannerFreeAt = now + delay + 700
     const t = this.scene.add
       .text(640, 300, text, { fontFamily: FONT, fontSize: `${size}px`, color })
       .setOrigin(0.5)
       .setStroke('#0b1d33', 10)
       .setScale(0.4)
-    this.scene.tweens.add({ targets: t, scale: 1, duration: 250, ease: 'Back.easeOut' })
-    this.scene.tweens.add({ targets: t, alpha: 0, delay: 900, duration: 400, onComplete: () => t.destroy() })
+      .setAlpha(delay > 0 ? 0 : 1)
+    this.scene.tweens.add({ targets: t, scale: 1, alpha: 1, delay, duration: 250, ease: 'Back.easeOut' })
+    this.scene.tweens.add({ targets: t, alpha: 0, delay: delay + 650, duration: 300, onComplete: () => t.destroy() })
   }
 }

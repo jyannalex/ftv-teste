@@ -53,15 +53,15 @@ export function outgoing(req: OutgoingRequest, rng: Rng): { vx: number; vy: numb
   switch (req.action) {
     case 'passe':
       target = s * 3.0
-      mode = { apex: 4.5 }
+      mode = { apex: 3.8 }
       break
     case 'levantada':
       target = s * 1.0
-      mode = { apex: 4.0 }
+      mode = { apex: 3.6 }
       break
     case 'devolucao':
       target = -s * 5.0
-      mode = { apex: 4.5 }
+      mode = { apex: 4.0 }
       break
     case 'pingo':
       target = -s * 1.2

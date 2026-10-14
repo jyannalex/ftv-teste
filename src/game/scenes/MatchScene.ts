@@ -1,15 +1,18 @@
 import Phaser from 'phaser'
 import { createAI, type AIController, type Personality, skillParams } from '../../core/ai'
+import type { TouchAction } from '../../core/touch'
 import { type Athlete, createMatch, IDLE, type MatchEvent, matchConfig, type MatchState, step } from '../../core/match'
 import { createRng } from '../../core/rng'
 import type { Side } from '../../core/rules'
 import { BALANCE } from '../../data/balance'
-import type { ArenaId } from '../../data/arenas'
+import { ARENAS, type ArenaId } from '../../data/arenas'
 import { AI_TEAMS, teamById } from '../../data/teams'
 import { Controls } from '../input/controls'
 import { createFixedStepper, type FixedStepper } from '../loop/fixedStep'
+import { type ArenaRuntime, drawArena } from '../render/arenas'
 import { AthleteView } from '../render/AthleteView'
 import { BallView } from '../render/BallView'
+import { BallTrail, sandPuff, sharkEffect } from '../render/effects'
 import { Hud } from '../render/Hud'
 import { ACTION_DURATION, LOOPING, type Pose, poseFor } from '../render/poses'
 import { toScreenX, toScreenY } from '../render/view'
@@ -63,6 +66,8 @@ export class MatchScene extends Phaser.Scene {
   private pauseLayer?: Phaser.GameObjects.Container
   private endT = 0
   private ataquePointer: number | null = null
+  private arena!: ArenaRuntime
+  private trail!: BallTrail
 
   constructor() {
     super('Match')
@@ -70,6 +75,9 @@ export class MatchScene extends Phaser.Scene {
 
   init(data: Partial<MatchSceneData>): void {
     this.cfg = { ...DEFAULT_DATA, ...data }
+    // Provisório até o menu: ?arena=clube|arena escolhe o cenário.
+    const fromUrl = new URLSearchParams(location.search).get('arena')
+    if (!data.arena && ARENAS.some((a) => a.id === fromUrl)) this.cfg.arena = fromUrl as ArenaId
     this.paused = false
     this.endT = 0
     this.athleteViews = []
@@ -87,7 +95,7 @@ export class MatchScene extends Phaser.Scene {
     )
     this.ai = createAI(1, this.cfg.skill, personality, createRng(seed + 1))
 
-    this.drawBackground()
+    this.arena = drawArena(this, this.cfg.arena)
     this.drawCourt()
     const looks = [
       { shirt: this.cfg.player.shirt, shorts: 0x263238 },
@@ -100,6 +108,7 @@ export class MatchScene extends Phaser.Scene {
       this.athleteViews.push(new AthleteView(this, look, a.team === 0 ? 1 : -1))
     }
     this.drawNet()
+    this.trail = new BallTrail(this)
     this.ballView = new BallView(this)
     this.hud = new Hud(this, [this.cfg.player.name, opponent.name])
     this.prevX = this.state.athletes.map((a) => a.x)
@@ -129,6 +138,7 @@ export class MatchScene extends Phaser.Scene {
         if (this.endT >= END_DELAY_SEC) this.finish()
       }
     }
+    this.arena.update(this.time.now / 1000)
     this.render(dt)
   }
 
@@ -143,6 +153,7 @@ export class MatchScene extends Phaser.Scene {
     switch (e.type) {
       case 'toque': {
         const a = s.athletes[e.athleteId]
+        this.touchEffects(e.action, a)
         if (a.team !== s.config.humanTeam) break
         const [text, color] = GRADE_TEXT[e.grade]
         this.hud.float(text, toScreenX(a.x), toScreenY(2.6), color)
@@ -153,10 +164,16 @@ export class MatchScene extends Phaser.Scene {
         if (a.team === s.config.humanTeam) this.hud.float('ERROU', toScreenX(a.x), toScreenY(2.6), '#ff5252')
         break
       }
-      case 'sharkataque':
+      case 'sharkataque': {
+        const a = s.athletes[e.athleteId]
+        sharkEffect(this, toScreenX(s.ball.x), toScreenY(s.ball.y), a.team === 0 ? 1 : -1)
+        this.slowMotion()
         this.hud.banner('SHARKATAQUE!', '#00e5ff', 64)
         break
+      }
       case 'ponto': {
+        this.trail.stop()
+        if (s.ball.y < 0.5) sandPuff(this, toScreenX(s.ball.x), toScreenY(0), 14)
         const text = e.reason === 'fora' ? 'FORA!' : e.reason === 'falta' ? 'FALTA!' : 'PONTO!'
         this.hud.banner(text, e.winner === 0 ? '#ffe14d' : '#ff8a80', 48)
         break
@@ -175,6 +192,7 @@ export class MatchScene extends Phaser.Scene {
       this.athleteViews[i].draw(a, pose)
       if (a.id === s.controlled && s.phase !== 'fim') marker = this.athleteViews[i].topOf(a, pose)
     })
+    this.trail.update(s.ball)
     this.ballView.draw(s.ball, dt)
     this.hud.update(s, marker, dt)
   }
@@ -220,14 +238,21 @@ export class MatchScene extends Phaser.Scene {
     }
   }
 
-  // ---- cenário provisório (trocado pelos cenários da Task 11) ----
-
-  private drawBackground(): void {
-    const g = this.add.graphics()
-    g.fillGradientStyle(0x4fc3f7, 0x4fc3f7, 0xb3e5fc, 0xb3e5fc, 1).fillRect(0, 0, 1280, 430)
-    g.fillStyle(0x0288d1, 1).fillRect(0, 430, 1280, 60)
-    g.fillStyle(0xf4d58d, 1).fillRect(0, 490, 1280, 230)
+  private touchEffects(action: TouchAction, a: Athlete): void {
+    const s = this.state
+    if (action === 'forte' || action === 'pingo' || action === 'sharkataque') sandPuff(this, toScreenX(a.x), toScreenY(0))
+    if (action === 'sharkataque') this.trail.start(0x00e5ff)
+    else if (action === 'forte' && (s.lastAttack?.force ?? 0) >= 0.5) this.trail.start(0xffffff)
+    else this.trail.stop()
   }
+
+  /** Câmera lenta curta no contato do Sharkataque. */
+  private slowMotion(): void {
+    this.stepper.timeScale = 0.3
+    this.time.delayedCall(250, () => (this.stepper.timeScale = 1))
+  }
+
+  // ---- quadra e rede ----
 
   private drawCourt(): void {
     const g = this.add.graphics()
