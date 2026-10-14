@@ -324,14 +324,15 @@ export class MatchScene extends Phaser.Scene {
   }
 
   /** Círculo de alcance do atleta controlado; vermelho quando a bola vai chegar dentro dele. */
-  private reachRing(): (GroundPoint & { r: number; hot: boolean }) | null {
+  private reachRing(): (GroundPoint & { r: number; hot: boolean; defense: number | null }) | null {
     const s = this.state
     if (s.controlled === null || s.phase === 'fim' || s.slowMo) return null
     const a = s.athletes[s.controlled]
     const plan = s.phase === 'rally' ? s.plan : null
     const mine = plan !== null && plan.athleteId === a.id
-    const r = mine && plan.incoming && plan.touchIndex === 1 ? BALANCE.defense.reach : s.config.humanReach
-    return { x: a.x, z: a.z, r, hot: mine && reachDist(a, plan) <= r }
+    const r = s.config.humanReach
+    const defense = mine && plan.incoming && plan.touchIndex === 1 ? BALANCE.defense.reach : null
+    return { x: a.x, z: a.z, r, defense, hot: mine && reachDist(a, plan) <= (defense ?? r) }
   }
 
   /** Onde a bola vai cair, durante o rally. */

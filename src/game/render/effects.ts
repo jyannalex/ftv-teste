@@ -104,7 +104,7 @@ export class GroundMarks {
     return { x: c.x, y: c.y, w: 2 * r * c.k, h: 2 * r * c.k * groundSquash(p.z) }
   }
 
-  update(reach: (GroundPoint & { r: number; hot: boolean }) | null, landing: GroundPoint | null, aim: GroundPoint | null, dt: number): void {
+  update(reach: (GroundPoint & { r: number; hot: boolean; defense: number | null }) | null, landing: GroundPoint | null, aim: GroundPoint | null, dt: number): void {
     this.t += dt
     const g = this.g
     g.clear()
@@ -112,8 +112,13 @@ export class GroundMarks {
       // Alcance do atleta controlado: fica vermelho quando a bola vai cair dentro.
       const e = this.ring(reach, reach.r)
       const color = reach.hot ? 0xff5252 : 0xffffff
-      g.fillStyle(color, reach.hot ? 0.22 : 0.1).fillEllipse(e.x, e.y, e.w, e.h)
-      g.lineStyle(3, color, 0.85).strokeEllipse(e.x, e.y, e.w, e.h)
+      g.fillStyle(color, reach.hot ? 0.2 : 0.07).fillEllipse(e.x, e.y, e.w, e.h)
+      g.lineStyle(2, color, 0.7).strokeEllipse(e.x, e.y, e.w, e.h)
+      // Ataque vindo: contorno fino do alcance com o botão DEFENDER.
+      if (reach.defense !== null) {
+        const d = this.ring(reach, reach.defense)
+        g.lineStyle(1.5, 0x80deea, 0.6).strokeEllipse(d.x, d.y, d.w, d.h)
+      }
     }
     if (landing) {
       const e = this.ring(landing, 0.35)

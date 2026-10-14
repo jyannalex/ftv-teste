@@ -17,11 +17,11 @@ export const BALANCE = {
   /** Velocidades (m/s) e aceleração/frenagem (m/s²): controle manual e posicionamento base. */
   move: { manual: 5, base: 4.5, accel: 33, decel: 50 },
   /** Distância máxima até a bola para o toque automático. */
-  reach: 1.2,
+  reach: 1.0,
   /** Contra ataque forte a bola chega rápida: a IA reage mais devagar e erra mais o lugar (m). */
   vsForte: { aiExtraReaction: 0.15, aiExtraError: 1.0 },
   /** Defesa de ataque (forte/Pingo): alcance (m) com o botão DEFENDER e janelas de tempo (s). */
-  defense: { reach: 2.1, window: 0.3, perfect: 0.09 },
+  defense: { reach: 1.9, window: 0.3, perfect: 0.09 },
   /** Bola com pouso além da linha mais esta margem: ninguém toca. */
   outMargin: 0.3,
   /** Câmera lenta do ataque do jogador. */
