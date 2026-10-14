@@ -96,11 +96,11 @@ export class CharacterScene extends Phaser.Scene {
     this.rows.push(button(this, LEFT_X - 10, 495, '−', () => step(-1), { w: 64, h: 50, size: 28 }))
     this.rows.push(button(this, LEFT_X + 170, 495, '+', () => step(1), { w: 64, h: 50, size: 28 }))
 
-    // Lado: direito joga em cima na tela, esquerdo embaixo.
+    // Lado (de frente para a rede): esquerdo joga em cima na tela, direito embaixo.
     this.rows.push(label(this, 150, 565, 'Lado', 20).setOrigin(0, 0.5))
     const sides: [PlayerSide, string][] = [
-      ['direito', 'Direito (em cima)'],
-      ['esquerdo', 'Esquerdo (embaixo)'],
+      ['esquerdo', 'Esquerdo (em cima)'],
+      ['direito', 'Direito (embaixo)'],
     ]
     sides.forEach(([side, name], i) =>
       this.rows.push(

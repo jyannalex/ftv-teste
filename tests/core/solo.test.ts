@@ -3,6 +3,7 @@ import { createAI } from '../../src/core/ai'
 import { planContact } from '../../src/core/contact'
 import { createMatch, DT, IDLE, type MatchEvent, type MatchState, matchConfig, step, type TeamInput } from '../../src/core/match'
 import { createRng } from '../../src/core/rng'
+import { laneOfSide } from '../../src/data/character'
 import { incomingBall, stateWithAttackPlan } from './helpers'
 
 type Toque = Extract<MatchEvent, { type: 'toque' }>
@@ -99,14 +100,14 @@ it('controle do teste acima: sem a opção, a mesma IA usaria o Shark', () => {
   expect(ev.find((e): e is Toque => e.type === 'toque')?.action).toBe('sharkataque')
 })
 
-describe('lado do jogador (direito = em cima, esquerdo = embaixo)', () => {
-  it('esquerdo: meu atleta começa embaixo (z+) e o parceiro em cima', () => {
+describe('faixa do jogador (humanLane: +1 embaixo, −1 em cima)', () => {
+  it('faixa +1: meu atleta começa embaixo (z+) e o parceiro em cima', () => {
     const s = createMatch(matchConfig({ humanTeam: 0, control: 'solo', humanLane: 1 }))
     expect(s.athletes[0].z).toBeGreaterThan(0)
     expect(s.athletes[1].z).toBeLessThan(0)
   })
 
-  it('direito: meu atleta começa em cima (z−)', () => {
+  it('faixa −1: meu atleta começa em cima (z−)', () => {
     const s = createMatch(matchConfig({ humanTeam: 0, control: 'solo', humanLane: -1 }))
     expect(s.athletes[0].z).toBeLessThan(0)
     expect(s.athletes[1].z).toBeGreaterThan(0)
@@ -122,4 +123,9 @@ describe('lado do jogador (direito = em cima, esquerdo = embaixo)', () => {
     for (let i = 0; i < 150; i++) step(s, [IDLE, IDLE], DT, IDLE)
     expect(s.athletes[1].z).toBeCloseTo(-2.2, 1)
   })
+})
+
+it('lado visto pelo atleta virado para a rede: direito = embaixo na tela (z+), esquerdo = em cima (z−)', () => {
+  expect(laneOfSide('direito')).toBe(1)
+  expect(laneOfSide('esquerdo')).toBe(-1)
 })

@@ -51,7 +51,7 @@ export type MatchConfig = {
    * (entrada própria no step).
    */
   control: 'dupla' | 'solo'
-  /** Lado do atleta do jogador: −1 em cima na tela (direito), +1 embaixo (esquerdo). O parceiro fica no outro. */
+  /** Faixa do atleta do jogador: −1 em cima na tela (esquerdo), +1 embaixo (direito). O parceiro fica na outra. */
   humanLane: -1 | 1
 }
 
