@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import type { AthleteAction } from '../../src/core/match'
 import { blendPose, poseFor } from '../../src/game/render/poses'
 
-const ACTIONS: AthleteAction[] = ['parado', 'correndo', 'chapa', 'peito', 'cabeca', 'pingo', 'sharkataque', 'saque', 'comemorando', 'peixinho']
+const ACTIONS: AthleteAction[] = ['parado', 'correndo', 'chapa', 'peito', 'cabeca', 'pingo', 'sharkataque', 'saque', 'comemorando']
 
 it('todas as ações dão poses finitas', () => {
   for (const a of ACTIONS)
@@ -18,11 +18,6 @@ it('sharkataque fica de cabeça para baixo no meio e volta de pé no fim', () =>
 it('cabeceio pula', () => {
   expect(poseFor('cabeca', 0.5).rootY).toBeGreaterThan(0.3)
   expect(poseFor('parado', 0.5).rootY).toBe(0)
-})
-
-it('peixinho: corpo quase horizontal no meio do mergulho', () => {
-  expect(Math.abs(poseFor('peixinho', 0.5).rootRot)).toBeGreaterThan(1.2)
-  expect(Math.abs(poseFor('peixinho', 0).rootRot)).toBeLessThan(0.5)
 })
 
 it('blendPose mistura duas poses (0 = a, 1 = b, 0,5 = meio)', () => {

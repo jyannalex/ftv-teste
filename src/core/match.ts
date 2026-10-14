@@ -15,7 +15,7 @@ import {
   sideSign,
   type TouchState,
 } from './rules'
-import { type Aim, aimFromMove, type Quality, type TouchAction } from './touch'
+import { type Aim, aimFromMove, type TouchAction } from './touch'
 
 export { setAction }
 
@@ -24,7 +24,7 @@ export const DT = 1 / 60
 export type TeamInput = {
   /** Direção na tela: −1 esquerda, +1 direita. */
   move: -1 | 0 | 1
-  /** Botão esquerdo (saque, ataque forte, peixinho), segurado. */
+  /** Botão esquerdo (saque e ataque forte), segurado. */
   forte: boolean
   /** Botão direito (Pingo), segurado. */
   pingo: boolean
@@ -58,7 +58,6 @@ export type AthleteAction =
   | 'sharkataque'
   | 'saque'
   | 'comemorando'
-  | 'peixinho'
 
 export type Athlete = {
   id: number
@@ -96,8 +95,6 @@ export type ContactPlan = {
   createdAt: number
   /** Ataque que vem do outro time (para o bônus de defesa). */
   incoming: 'forte' | null
-  /** Já passou do contato e está esperando um peixinho atrasado. */
-  resolving: boolean
   /** Escolha de ataque do 3º toque (a última borda de botão). */
   choice: 'forte' | 'pingo' | 'sharkataque' | null
   /** Já conferiu se o jogador pula para a câmera lenta. */
@@ -129,7 +126,7 @@ export type MatchState = {
 
 export type MatchEvent =
   | { type: 'saque'; athleteId: number }
-  | { type: 'toque'; athleteId: number; action: TouchAction; quality: Quality }
+  | { type: 'toque'; athleteId: number; action: TouchAction }
   | { type: 'perdeu'; athleteId: number }
   | { type: 'rede' }
   | { type: 'sharkataque'; athleteId: number }

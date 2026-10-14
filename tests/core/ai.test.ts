@@ -27,8 +27,8 @@ const firstTouchOf = (s: ReturnType<typeof incomingBall>, ai: ReturnType<typeof 
 
 describe('IA arcade', () => {
   it('extremos de skillParams', () => {
-    expect(skillParams(0)).toEqual({ reactionDelay: 0.35, posError: 1.0, diveChance: 0.3, readChance: 0 })
-    expect(skillParams(1)).toEqual({ reactionDelay: 0.08, posError: 0.1, diveChance: 0.9, readChance: 1 })
+    expect(skillParams(0)).toEqual({ reactionDelay: 0.35, posError: 1.0, readChance: 0 })
+    expect(skillParams(1)).toEqual({ reactionDelay: 0.08, posError: 0.1, readChance: 1 })
   })
 
   it.each([
@@ -48,7 +48,8 @@ describe('IA arcade', () => {
   })
 
   it('IA com skill 1 escolhe Pingo contra defesa recuada e forte contra defesa adiantada', () => {
-    const deep = stateWithAttackPlan(1, [-7, -6.5], 0) // time 0 humano parado: a defesa fica onde está
+    // Time 0 humano: o controlado (atleta 0) fica a 5 m e o parceiro vai sozinho para o fundo (6,5 m).
+    const deep = stateWithAttackPlan(1, [-5, -6.5], 0)
     expect(firstTouchOf(deep, createAI(1, 1, 'equilibrado', createRng(1)))).toMatchObject({ action: 'pingo' })
     const close = stateWithAttackPlan(1, [-1.5, -2.5], 0)
     expect(firstTouchOf(close, createAI(1, 1, 'equilibrado', createRng(1)))).toMatchObject({ action: 'forte' })
@@ -57,17 +58,7 @@ describe('IA arcade', () => {
   it('IA corre até a bola e recebe (skill 1)', () => {
     const s = incomingBall(6)
     const t = firstTouchOf(s, createAI(1, 1, 'equilibrado', createRng(2)))
-    expect(t).toMatchObject({ action: 'passe', quality: 'normal' })
-  })
-
-  it('IA dá peixinho quando não dá tempo de chegar (skill 1)', () => {
-    const s = incomingBall(4)
-    const p = s.plan!
-    // Longe demais para correr a tempo, perto o bastante para o mergulho.
-    s.athletes[p.athleteId].x = p.x + 2.0
-    s.plan!.tIdeal = s.time + 0.1
-    const t = firstTouchOf(s, createAI(1, 1, 'equilibrado', createRng(3)))
-    expect(t).toMatchObject({ quality: 'peixinho' })
+    expect(t).toMatchObject({ action: 'passe' })
   })
 
   it('bestAim escolhe fundo quando os defensores estão na frente e curto quando estão no fundo', () => {

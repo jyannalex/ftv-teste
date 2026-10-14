@@ -12,7 +12,7 @@ const BALL = (g: Phaser.GameObjects.Graphics, x: number, y: number) => {
 const CARDS: Card[] = [
   {
     title: '1. Corra até a sombra',
-    lines: ['◀ ▶ (A/D) movem o seu atleta.', 'No lugar certo ele recebe e levanta sozinho.', 'Longe? FORTE (J) faz o PEIXINHO!'],
+    lines: ['◀ ▶ (A/D) movem o seu atleta.', 'No lugar certo ele recebe e levanta sozinho.', 'O parceiro se posiciona sozinho.'],
     draw: (g, x, y) => {
       g.fillStyle(0x2e7d32, 1).fillCircle(x - 40, y, 26)
       g.fillStyle(0xc62828, 1).fillCircle(x + 40, y, 26)

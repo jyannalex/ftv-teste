@@ -7,16 +7,16 @@ Jogo de futevôlei 2x2 para navegador e celular. Você joga contra o computador 
 | Ação | Celular | Teclado |
 |---|---|---|
 | Mover | ◀ ▶ (canto esquerdo) | A/D ou ← → |
-| Saque, ataque forte, peixinho | botão FORTE | J |
+| Saque e ataque forte | botão FORTE | J |
 | Pingo | botão PINGO | K |
 | Sharkataque (barra cheia) | botão 🦈 | Espaço |
 | Pausa | botão ‖ | Esc |
 
-- **Corra até a sombra da bola.** No lugar certo, o atleta recebe e levanta sozinho. Se a bola estiver um pouco longe, **FORTE** faz o **peixinho**.
+- **Corra até a sombra da bola.** No lugar certo, o atleta recebe e levanta sozinho. Longe da bola, ela cai: no futevôlei não tem mergulho.
 - **Saque:** segure FORTE e solte. ◀ ▶ mira curto ou fundo, e o anel amarelo mostra onde a bola vai cair.
 - **Ataque em câmera lenta:** no 3º toque o atleta pula e o tempo desacelera. **FORTE** bate forte, **PINGO** cai logo atrás da rede e ◀ ▶ mira. Com a barra cheia, **🦈** solta o **Sharkataque**, que é imparável.
 - Toques, defesas e pontos enchem a barra do Sharkataque, que fica embaixo da tela.
-- **Você move os dois atletas, um de cada vez.** Quando a bola vem para o seu lado, o controle vai para quem vai tocar. Quando ela vai para o outro lado, o controle vai para quem estiver mais perto de onde ela vai cair. Quem não está sob controle fica onde você deixou.
+- **Você move os dois atletas, um de cada vez.** Quando a bola vem para o seu lado, o controle vai para quem vai tocar. Quando ela vai para o outro lado, o controle continua com quem você estava movendo. Quem não está sob controle vai sozinho para a posição padrão: perto da rede quando o seu time está com a bola e, na defesa, na posição (frente ou fundo) que o seu atleta deixou livre.
 
 ## Desenvolvimento
 
@@ -47,7 +47,7 @@ Formato sugerido da arte:
 ```
 public/sprites/<personagem>/
   parado.png  correndo.png  chapa.png  peito.png  cabeca.png
-  pingo.png   peixinho.png  sharkataque.png  saque.png  comemorando.png
+  pingo.png   sharkataque.png  saque.png  comemorando.png
 ```
 
 - Cada arquivo é uma tira horizontal de quadros (*spritesheet*) com o mesmo tamanho de quadro, por exemplo 256×256.

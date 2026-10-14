@@ -61,7 +61,6 @@ const CONTACT_KEY: Partial<Record<Athlete['action'], number>> = {
   pingo: 0.5,
   sharkataque: 0.5,
   saque: 0.6,
-  peixinho: 0.35,
 }
 const ACTION_TEXT: Partial<Record<TouchAction, [string, string]>> = { forte: ['FORTE!', '#ffe14d'], pingo: ['PINGO!', '#9cff57'] }
 const END_DELAY_SEC = 2
@@ -190,7 +189,7 @@ export class MatchScene extends Phaser.Scene {
         this.touchEffects(e.action, a)
         this.audio.playSfx('toque')
         if (a.team !== s.config.humanTeam) break
-        const label = e.quality === 'peixinho' ? (['PEIXINHO!', '#4fc3f7'] as [string, string]) : ACTION_TEXT[e.action]
+        const label = ACTION_TEXT[e.action]
         if (label) this.hud.float(label[0], toScreenX(a.x), toScreenY(2.6), label[1])
         break
       }

@@ -3,8 +3,6 @@ import { launchVelocity, type Point } from './physics'
 import type { Rng } from './rng'
 import { type Side, sideSign } from './rules'
 
-/** Qualidade do toque: normal (no lugar) ou peixinho (torto). */
-export type Quality = 'normal' | 'peixinho'
 export type Aim = 'curto' | 'meio' | 'fundo'
 export type TouchAction = 'passe' | 'levantada' | 'fraco' | 'pingo' | 'forte' | 'sharkataque'
 
@@ -15,7 +13,7 @@ export function aimFromMove(team: Side, move: -1 | 0 | 1): Aim {
   return towardNet ? 'curto' : 'fundo'
 }
 
-export type OutgoingRequest = { action: TouchAction; team: Side; from: Point; quality: Quality; aim?: Aim }
+export type OutgoingRequest = { action: TouchAction; team: Side; from: Point; aim?: Aim }
 
 /** Trajetória de saída de um toque: velocidade da bola e onde ela deve cair. */
 export function outgoing(req: OutgoingRequest, rng: Rng): { vx: number; vy: number; targetX: number } {
@@ -53,8 +51,7 @@ export function outgoing(req: OutgoingRequest, rng: Rng): { vx: number; vy: numb
       break
   }
 
-  const isAttack = req.action === 'forte' || req.action === 'sharkataque' || req.action === 'pingo' || req.action === 'fraco'
-  const spread = isAttack ? BALANCE.quality.normal : BALANCE.quality[req.quality]
+  const spread = BALANCE.aimError
   target += rng.range(-spread, spread)
   const to = { x: target, y: BALANCE.ballRadius }
   let v = launchVelocity(req.from, to, mode)

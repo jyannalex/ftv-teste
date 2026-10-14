@@ -3,7 +3,7 @@ import { reachOf, replan, setAction } from './contact'
 import type { AthleteAction, ContactPlan, MatchEvent, MatchState, TeamInput } from './match'
 import { registerTouch } from './rules'
 import { addMeter, isMeterFull } from './specialMeter'
-import { type Aim, aimFromMove, outgoing, type Quality, type TouchAction } from './touch'
+import { type Aim, aimFromMove, outgoing, type TouchAction } from './touch'
 
 export type Edges = { forteDown: boolean; forteUp: boolean; pingoDown: boolean; sharkDown: boolean }
 
@@ -16,7 +16,6 @@ export function executeTouch(
   s: MatchState,
   plan: ContactPlan,
   action: TouchAction,
-  quality: Quality,
   aim: Aim,
   events: MatchEvent[],
   from = { x: plan.x, y: plan.y },
@@ -24,21 +23,20 @@ export function executeTouch(
   const team = plan.team
   const shark = action === 'sharkataque'
   const origin = { x: from.x, y: from.y + (shark ? BALANCE.sharkExtraHeight : 0) }
-  const v = outgoing({ action, team, from: origin, quality, aim }, s.rng)
+  const v = outgoing({ action, team, from: origin, aim }, s.rng)
   s.ball = { ...origin, vx: v.vx, vy: v.vy }
   s.touch = registerTouch(s.touch, plan.athleteId)
 
   s.meter[team] = addMeter(s.meter[team], BALANCE.meter.toque)
   if (plan.incoming === 'forte') s.meter[team] = addMeter(s.meter[team], BALANCE.meter.defesaForte)
 
-  events.push({ type: 'toque', athleteId: plan.athleteId, action, quality })
+  events.push({ type: 'toque', athleteId: plan.athleteId, action })
   if (shark) {
     s.meter[team] = 0
     events.push({ type: 'sharkataque', athleteId: plan.athleteId })
   }
   s.lastAttack = action === 'forte' || shark ? { team, kind: shark ? 'shark' : 'forte' } : null
-  const visual = quality === 'peixinho' ? 'peixinho' : (VISUAL[action] ?? plan.kind)
-  setAction(s.athletes[plan.athleteId], visual)
+  setAction(s.athletes[plan.athleteId], VISUAL[action] ?? plan.kind)
   s.slowMo = null
   replan(s)
 }
@@ -68,8 +66,8 @@ function slowMoAttack(s: MatchState, plan: ContactPlan, inputs: [TeamInput, Team
   const e = edges[team]
   const choice: TouchAction | null =
     e.sharkDown && isMeterFull(s.meter[team]) ? 'sharkataque' : e.forteDown ? 'forte' : e.pingoDown ? 'pingo' : null
-  if (choice) executeTouch(s, plan, choice, 'normal', aim, events, { x: s.ball.x, y: s.ball.y })
-  else if (s.time >= plan.tIdeal) executeTouch(s, plan, 'fraco', 'normal', aim, events)
+  if (choice) executeTouch(s, plan, choice, aim, events, { x: s.ball.x, y: s.ball.y })
+  else if (s.time >= plan.tIdeal) executeTouch(s, plan, 'fraco', aim, events)
   return true
 }
 
@@ -80,7 +78,7 @@ function recordChoice(s: MatchState, plan: ContactPlan, e: Edges): void {
   if (e.sharkDown && isMeterFull(s.meter[plan.team])) plan.choice = 'sharkataque'
 }
 
-/** Resolve o contato do plano atual: toque automático, peixinho ou bola perdida. */
+/** Resolve o contato do plano atual: toque automático se o atleta estiver no lugar, senão a bola cai. */
 export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], edges: [Edges, Edges], events: MatchEvent[]): void {
   const plan = s.plan
   if (!plan) return
@@ -89,37 +87,19 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
   if (plan.touchIndex === 3) recordChoice(s, plan, edges[team])
   if (s.time < plan.tIdeal) return
 
-  const athlete = s.athletes[plan.athleteId]
-  const d = Math.abs(athlete.x - plan.x)
-  const aim = aimFromMove(team, inputs[team].move)
-  const action: TouchAction = plan.touchIndex === 3 ? (plan.choice ?? 'fraco') : AUTO[plan.touchIndex]
-
-  if (!plan.resolving) {
-    plan.resolving = true
-    const reach = reachOf(s, plan.athleteId) * (plan.incoming === 'forte' ? BALANCE.vsForte.reachScale : 1)
-    if (d <= reach) {
-      executeTouch(s, plan, action, 'normal', aim, events)
-      return
-    }
-  }
-
-  // Peixinho: botão esquerdo apertado perto do contato e bola a até 2,2 m.
-  const pressAt = s.buttons[team].fortePressAt
-  const dive = BALANCE.dive
-  const diveReach = plan.incoming === 'forte' ? BALANCE.vsForte.diveReach : dive.reach
-  if (d <= diveReach && pressAt !== null && pressAt >= plan.tIdeal - dive.before) {
-    athlete.x = plan.x
-    executeTouch(s, plan, plan.touchIndex === 3 ? 'fraco' : action, 'peixinho', 'meio', events)
+  const d = Math.abs(s.athletes[plan.athleteId].x - plan.x)
+  const reach = reachOf(s, plan.athleteId) * (plan.incoming === 'forte' ? BALANCE.vsForte.reachScale : 1)
+  if (d <= reach) {
+    const action: TouchAction = plan.touchIndex === 3 ? (plan.choice ?? 'fraco') : AUTO[plan.touchIndex]
+    executeTouch(s, plan, action, aimFromMove(team, inputs[team].move), events)
     return
   }
-  if (s.time > plan.tIdeal + dive.after) {
-    events.push({ type: 'perdeu', athleteId: plan.athleteId })
-    s.plan = null
-  }
+  events.push({ type: 'perdeu', athleteId: plan.athleteId })
+  s.plan = null
 }
 
 /** Enquanto o toque ainda pode acontecer, a bola não "cai" (ele sai do ponto planejado). */
 export function touchStillPossible(s: MatchState): boolean {
   const plan = s.plan
-  return plan !== null && s.time <= plan.tIdeal + BALANCE.dive.after
+  return plan !== null && s.time <= plan.tIdeal + BALANCE.contactGrace
 }

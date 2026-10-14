@@ -14,14 +14,12 @@ export const BALANCE = {
 
   /** Velocidades (m/s) e aceleração/frenagem (m/s²): controle manual e posicionamento base. */
   move: { manual: 5, base: 4.5, accel: 33, decel: 50 },
-  /** Troca o atleta controlado (bola do outro lado) só se o outro estiver tanto mais perto (m). */
-  switchMargin: 1,
   /** Distância máxima até a bola para o toque automático. */
   reach: 0.7,
-  /** Peixinho: alcance e intervalo do botão em volta do contato (s). */
-  dive: { reach: 2.2, before: 0.6, after: 0.05 },
-  /** Contra ataque forte a bola chega rápida: alcance automático menor e peixinho mais curto. */
-  vsForte: { reachScale: 0.6, diveReach: 1.5, aiExtraReaction: 0.15 },
+  /** Folga depois do contato planejado em que a bola ainda não conta como caída (s). */
+  contactGrace: 0.05,
+  /** Contra ataque forte a bola chega rápida: alcance automático menor e a IA reage mais devagar. */
+  vsForte: { reachScale: 0.85, aiExtraReaction: 0.15 },
   /** Bola com pouso além da linha mais esta margem: ninguém toca. */
   outMargin: 0.3,
   /** Câmera lenta do ataque do jogador. */
@@ -29,9 +27,9 @@ export const BALANCE = {
   /** Mira do ataque e do saque (distância da rede). */
   aimDepth: { curto: 2.5, meio: 5.0, fundo: 7.8 },
   serveDepth: { curto: 3.0, meio: 5.5, fundo: 8.0 },
-  attack: { forteTime: 0.45, sharkTime: 0.32, pingoDist: 1.2, fracoDepth: 5.0, fracoApex: 4.0 },
-  /** Erro de alvo (m, para mais ou para menos) por qualidade do toque. */
-  quality: { normal: 0.4, peixinho: 1.2 },
+  attack: { forteTime: 0.6, sharkTime: 0.32, pingoDist: 1.2, fracoDepth: 5.0, fracoApex: 4.0 },
+  /** Erro de alvo dos toques (m, para mais ou para menos). */
+  aimError: 0.4,
   meter: { toque: 5, defesaForte: 12, ponto: 10, max: 100 },
 
   /** Posição x (em módulo) do sacador, atrás da linha de fundo. */

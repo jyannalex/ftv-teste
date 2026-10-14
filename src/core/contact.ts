@@ -61,7 +61,6 @@ export function planContact(s: MatchState): ContactPlan | null {
     tIdeal: s.time + chosen.dt,
     createdAt: s.time,
     incoming,
-    resolving: false,
     choice: null,
     jumpChecked: false,
   }
@@ -110,24 +109,11 @@ function seek(a: Athlete, team: Side, targetX: number, speed: number, dt: number
   drive(a, Math.max(-speed, Math.min(speed, gap * SEEK_GAIN)), dt)
 }
 
-/** Bola indo para o outro lado: o jogador controla quem está mais perto do pouso (com folga para não ficar trocando). */
-export function updateControlled(s: MatchState): void {
-  const team = s.config.humanTeam
-  if (team === null || s.phase !== 'rally' || s.plan?.team === team) return
-  const landing = predictLanding(s.ball).x
-  const mates = s.athletes.filter((a) => a.team === team)
-  const current = s.controlled !== null && s.controlled !== undefined ? s.athletes[s.controlled] : mates[0]
-  const other = mates.find((a) => a.id !== current.id)!
-  if (Math.abs(other.x - landing) + BALANCE.switchMargin < Math.abs(current.x - landing)) s.controlled = other.id
-  else s.controlled = current.id
-}
-
 /**
- * Move os atletas. Time humano: só o controlado anda (pela entrada), o outro fica onde está.
+ * Move os atletas. Time humano: o controlado anda pela entrada; o parceiro vai sozinho para a posição base.
  * Time da IA: o designado anda pela entrada da IA; os demais vão para a posição base.
  */
 export function updatePositions(s: MatchState, inputs: [TeamInput, TeamInput], dt: number): void {
-  updateControlled(s)
   const plan = s.plan
   const slow = s.slowMo !== null
   for (const team of [0, 1] as Side[]) {
@@ -136,15 +122,23 @@ export function updatePositions(s: MatchState, inputs: [TeamInput, TeamInput], d
     const hasBall = plan?.team === team
     const [a, b] = mates
     const aFront = Math.abs(a.x) <= Math.abs(b.x)
-    const baseOf = (x: Athlete) =>
-      sign * (hasBall ? BALANCE.basePos.support : (x === a) === aFront ? BALANCE.basePos.front : BALANCE.basePos.back)
-    const move = slow ? 0 : inputs[team].move
     const human = team === s.config.humanTeam
+    // Defendendo, o parceiro do jogador ocupa a posição que o controlado deixou livre.
+    const ctrl = human && s.controlled !== null ? s.athletes[s.controlled] : null
+    const ctrlFront = ctrl ? Math.abs(ctrl.x) <= (BALANCE.basePos.front + BALANCE.basePos.back) / 2 : false
+    const baseOf = (x: Athlete) => {
+      if (hasBall) return sign * BALANCE.basePos.support
+      const front = ctrl ? !ctrlFront : (x === a) === aFront
+      return sign * (front ? BALANCE.basePos.front : BALANCE.basePos.back)
+    }
+    const move = slow ? 0 : inputs[team].move
 
     for (const ath of mates) {
       if (slow && s.slowMo?.athleteId === ath.id) continue // o atacante está no ar
-      if (human) {
-        drive(ath, ath.id === s.controlled ? move * BALANCE.move.manual : 0, dt)
+      if (human && ath.id === s.controlled) {
+        drive(ath, move * BALANCE.move.manual, dt)
+      } else if (human) {
+        seek(ath, team, baseOf(ath), BALANCE.move.base, dt)
       } else if (hasBall && plan.athleteId === ath.id) {
         drive(ath, move * BALANCE.move.manual, dt)
       } else {

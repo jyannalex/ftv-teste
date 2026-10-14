@@ -12,8 +12,6 @@ export type SkillParams = {
   reactionDelay: number
   /** Desvio padrão do erro de posicionamento (m). */
   posError: number
-  /** Chance de dar peixinho quando precisa. */
-  diveChance: number
   /** Chance de "ler" a defesa na escolha e na mira do ataque. */
   readChance: number
 }
@@ -25,7 +23,6 @@ export function skillParams(skill: number): SkillParams {
   return {
     reactionDelay: lerp(0.35, 0.08, k),
     posError: lerp(1.0, 0.1, k),
-    diveChance: lerp(0.3, 0.9, k),
     readChance: k,
   }
 }
@@ -54,9 +51,8 @@ const DEEP_DEFENSE = 4.5
 const DECISIVE_POINTS = 9
 const SERVE_WAIT_SEC = 1
 const SERVE_HOLD_SEC = 0.1
-/** Antecedência do aperto do ataque e da decisão do peixinho (s). */
+/** Antecedência do aperto do ataque (s). */
 const ATTACK_PRESS_LEAD = 0.15
-const DIVE_DECIDE_LEAD = 0.3
 const ARRIVE_TOLERANCE = 0.1
 
 type Decision = {
@@ -65,7 +61,6 @@ type Decision = {
   attackPressed: boolean
   attackButton: 'forte' | 'pingo' | 'shark'
   aim: Aim
-  diveDecided: boolean
 }
 
 export type AIController = { think(s: MatchState): TeamInput }
@@ -112,7 +107,7 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
       const key = `${plan.athleteId}:${plan.createdAt.toFixed(4)}`
       if (decision?.key !== key) {
         const error = rng.normal(0, p.posError * (personality === 'paredao' ? 0.7 : 1))
-        decision = { key, posError: error, attackPressed: false, attackButton: 'forte', aim: 'meio', diveDecided: false }
+        decision = { key, posError: error, attackPressed: false, attackButton: 'forte', aim: 'meio' }
       }
       const d = decision
       const athlete = s.athletes[plan.athleteId]
@@ -129,17 +124,9 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
         if (Math.abs(gap) > ARRIVE_TOLERANCE + stopDist) input.move = gap > 0 ? 1 : -1
       }
 
-      // Peixinho quando não vai dar para chegar.
-      if (!d.diveDecided && now >= plan.tIdeal - DIVE_DECIDE_LEAD) {
-        d.diveDecided = true
-        const dist = Math.abs(athlete.x - plan.x)
-        const diveReach = plan.incoming === 'forte' ? BALANCE.vsForte.diveReach : BALANCE.dive.reach
-        if (dist > BALANCE.reach && dist <= diveReach && rng.next() < p.diveChance) input.forte = true
-      }
-
       // Ataque: escolhe e aperta pouco antes do contato; no contato, a direção é a mira.
       if (plan.touchIndex === 3) {
-        if (!d.attackPressed && now >= plan.tIdeal - ATTACK_PRESS_LEAD && !input.forte) {
+        if (!d.attackPressed && now >= plan.tIdeal - ATTACK_PRESS_LEAD) {
           d.attackPressed = true
           Object.assign(d, chooseAttack(s))
           input[d.attackButton] = true

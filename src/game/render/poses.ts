@@ -33,7 +33,6 @@ export const ACTION_DURATION: Record<AthleteAction, number> = {
   sharkataque: 0.9,
   saque: 0.5,
   comemorando: 1.0,
-  peixinho: 0.8,
 }
 
 /** Ações que se repetem em ciclo; as outras param no último quadro. */
@@ -79,13 +78,6 @@ const KEYS: Record<Exclude<AthleteAction, 'correndo'>, Key[]> = {
     [0.35, { tronco: 0.15, coxaD: -0.9, canelaD: 1.2, bracoE: 0.6, bracoD: -0.6 }],
     [0.6, { tronco: -0.15, coxaD: 1.2, canelaD: -0.1, bracoE: -0.6, bracoD: 0.5 }],
     [1, {}],
-  ],
-  // Mergulho para a frente: corpo quase horizontal, braços esticados à frente, pernas para trás.
-  peixinho: [
-    [0, { rootRot: 0.2, coxaE: 0.5, canelaE: -0.8 }],
-    [0.35, { rootY: 0.35, rootRot: 1.35, bracoE: 2.9, bracoD: 3.0, coxaE: -0.1, coxaD: 0.1 }],
-    [0.7, { rootY: 0.05, rootRot: 1.45, bracoE: 3.0, bracoD: 3.0 }],
-    [1, { rootY: 0, rootRot: 1.4, bracoE: 2.6, bracoD: 2.8 }],
   ],
   comemorando: [
     [0, { bracoE: -2.8, bracoD: 2.8 }],

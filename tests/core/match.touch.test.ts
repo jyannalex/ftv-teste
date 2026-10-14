@@ -21,7 +21,7 @@ describe('partida: toques automáticos (arcade)', () => {
     const s = incomingBall(4)
     placeDesignated(s, 0.3)
     const ev = simulate(s, standStill, 300, 'toque')
-    expect(toques(ev)[0]).toMatchObject({ action: 'passe', quality: 'normal' })
+    expect(toques(ev)[0]).toMatchObject({ action: 'passe' })
     expect(s.meter[1]).toBe(BALANCE.meter.toque)
   })
 
@@ -44,31 +44,14 @@ describe('partida: toques automáticos (arcade)', () => {
     expect(ev).toContainEqual({ type: 'ponto', winner: 0, reason: 'chao' })
   })
 
-  it('atleta a 1,5 m com o botão esquerdo apertado 0,3 s antes: peixinho', () => {
+  it('sem peixinho: apertar FORTE com a bola a 1,5 m não salva', () => {
     const s = incomingBall(4)
     placeDesignated(s, 1.5)
     const tIdeal = s.plan!.tIdeal
-    let pressed = false
-    const ev = simulate(
-      s,
-      (st) => {
-        const now = st.time + 1 / 60
-        const press = !pressed && now >= tIdeal - 0.3
-        if (press) pressed = true
-        return teamInputs(1, { forte: press })
-      },
-      300,
-      'toque',
-    )
-    expect(toques(ev)[0]).toMatchObject({ action: 'passe', quality: 'peixinho' })
-    expect(s.athletes[s.touch.lastAthlete!].action).toBe('peixinho')
-  })
-
-  it('atleta a 3 m: nem o peixinho alcança', () => {
-    const s = incomingBall(4)
-    placeDesignated(s, 3)
-    const ev = simulate(s, () => teamInputs(1, { forte: true }), 300, 'ponto')
+    // Aperta 0,3 s antes do contato (era a janela do peixinho).
+    const ev = simulate(s, (st) => teamInputs(1, { forte: st.time + 1 / 60 >= tIdeal - 0.3 }), 300, 'ponto')
     expect(toques(ev)).toHaveLength(0)
+    expect(ev).toContainEqual({ type: 'ponto', winner: 0, reason: 'chao' })
   })
 
   it('bola indo para fora: ninguém planeja e a ajuda não corre atrás (Review Focus)', () => {
@@ -104,12 +87,25 @@ describe('partida: toques automáticos (arcade)', () => {
     expect(s.athletes[id].x).toBe(8)
   })
 
-  it('o parceiro sem controle fica onde está', () => {
+  it('com a bola, o parceiro sem controle vai sozinho para perto da rede', () => {
     const s = incomingBall(4, { humanTeam: 1 })
+    s.ball.y = 12 // bola alta: dá tempo de o parceiro chegar
+    s.plan = planContact(s)
     const other = s.plan!.athleteId ^ 1
-    s.athletes[other].x = 2.2
-    for (let i = 0; i < 60; i++) step(s, teamInputs(1, { move: -1 }))
-    expect(s.athletes[other].x).toBe(2.2)
+    s.athletes[other].x = 6
+    for (let i = 0; i < 100; i++) step(s, teamInputs(1, { move: 0 }))
+    expect(s.athletes[other].x).toBeCloseTo(BALANCE.basePos.support, 1)
+  })
+
+  it('na defesa, o parceiro ocupa a posição que o controlado deixou livre', () => {
+    const s = incomingBall(-4, { humanTeam: 1 }) // bola indo para o time 0
+    s.controlled = 2
+    s.athletes[2].x = 7 // controlado no fundo
+    s.athletes[3].x = 8.5
+    s.ball.y = 12
+    s.plan = planContact(s)
+    for (let i = 0; i < 100; i++) step(s, [IDLE, IDLE])
+    expect(s.athletes[3].x).toBeCloseTo(BALANCE.basePos.front, 1)
   })
 
   it('acelera até 5 m/s em ~0,15 s e freia em ~0,1 s', () => {
@@ -124,15 +120,12 @@ describe('partida: toques automáticos (arcade)', () => {
     expect(s.athletes[id].vx).toBe(0)
   })
 
-  it('bola do outro lado: controla quem está mais perto do pouso (troca só com 1 m de folga)', () => {
+  it('bola do outro lado: o controle não troca enquanto o parceiro se posiciona', () => {
     const s = incomingBall(-4, { humanTeam: 1 }) // bola indo para o time 0
     s.controlled = 2
-    s.athletes[2].x = 6
-    s.athletes[3].x = 5.5 // só 0,5 m mais perto da bola: não troca
-    step(s, [IDLE, IDLE])
+    s.athletes[2].x = 7
+    s.athletes[3].x = 4 // mais perto da bola, mas não é o controlado
+    for (let i = 0; i < 30; i++) step(s, [IDLE, IDLE])
     expect(s.controlled).toBe(2)
-    s.athletes[3].x = 4 // 2 m mais perto: troca
-    step(s, [IDLE, IDLE])
-    expect(s.controlled).toBe(3)
   })
 })
