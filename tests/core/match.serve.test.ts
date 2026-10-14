@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cancelButtons, createMatch, IDLE, matchConfig } from '../../src/core/match'
+import { cancelButtons, createMatch, IDLE, matchConfig, step } from '../../src/core/match'
 import { serveWith, simulate, standStill } from './helpers'
 
 describe('partida: saque e pontuação (arcade)', () => {
@@ -65,5 +65,22 @@ describe('partida: saque e pontuação (arcade)', () => {
     expect(ev).toContainEqual({ type: 'fimDeSet', winner: 0 })
     expect(s.phase).toBe('fim')
     expect(s.meter[0]).toBe(10)
+  })
+})
+
+describe('correções da revisão (visão 3D)', () => {
+  it('a trava de movimento não passa para o próximo rally', () => {
+    const s = createMatch(matchConfig({ humanTeam: null }))
+    simulate(s, serveWith(0, 'meio'), 3000, 'ponto')
+    s.buttons[0].moveLock = { move: 1, moveZ: 0 }
+    for (let i = 0; i < 300 && s.phase !== 'saque'; i++) step(s, [{ ...IDLE, move: 1 }, IDLE])
+    expect(s.phase).toBe('saque')
+    expect(s.buttons[0].moveLock).toBeNull()
+  })
+
+  it('a bola morta quica depois do ponto', () => {
+    const s = createMatch(matchConfig({ humanTeam: null }))
+    simulate(s, serveWith(0, 'meio'), 3000, 'ponto')
+    expect(s.ball.vy).toBeGreaterThan(0)
   })
 })

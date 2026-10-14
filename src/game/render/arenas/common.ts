@@ -26,15 +26,20 @@ export function crowd(scene: Phaser.Scene, seed: string, density = 1): ArenaRunt
   for (const side of [-1, 1])
     for (let z = -4.5; z <= 3; z += 1.5 / density) if (rnd.frac() < 0.7) add(side * rnd.realInRange(11.6, 13), z)
   fans.sort((a, b) => a.z - b.z)
-  // Um gráfico por fileira de profundidade: atrás (z < -5) e dos lados.
-  const back = scene.add.graphics().setDepth(depthOf(-7))
-  const sides = scene.add.graphics().setDepth(depthOf(4))
+  // Um gráfico por faixa de profundidade (0,5 m), na ordem certa em relação aos atletas.
+  const layers = new Map<number, Phaser.GameObjects.Graphics>()
+  const layerOf = (z: number) => {
+    const band = Math.round(z * 2) / 2
+    let g = layers.get(band)
+    if (!g) layers.set(band, (g = scene.add.graphics().setDepth(depthOf(band))))
+    return g
+  }
+  for (const f of fans) layerOf(f.z)
   return {
     update(t: number) {
-      back.clear()
-      sides.clear()
+      for (const g of layers.values()) g.clear()
       for (const f of fans) {
-        const g = f.z < -5 ? back : sides
+        const g = layerOf(f.z)
         const p = project(f.x, 0, f.z)
         const s = p.k / 50
         const hop = Math.max(0, Math.sin(t * 4 + f.ph)) * 6 * s

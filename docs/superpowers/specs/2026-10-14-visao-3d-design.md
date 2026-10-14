@@ -22,10 +22,11 @@ inteira (2 eixos), mantendo todas as mecânicas arcade da v2. Corrigir o atleta 
 
 - `TeamInput` ganha `moveZ: −1 | 0 | 1` (−1 = para o fundo da tela). `move` continua sendo o eixo x.
 - Mira = profundidade (curto/meio/fundo, pelo eixo x como hoje) + faixa (`lane`: −1, 0, +1 pelo
-  `moveZ`). Faixa vira z = lane × 2,8 m. Mesmo erro aleatório de ±0,4 m nos dois eixos.
+  `moveZ`). Faixa vira z = lane × 3,3 m (Pingo: 2,0 m). Mesmo erro aleatório de ±0,4 m nos dois eixos.
 - Saque usa a mesma mira 2D.
 - **Trava de movimento (bug do saque):** depois do saque e do ataque em câmera lenta do jogador, a
-  direção segurada é ignorada até o jogador soltar todas as direções.
+  direção segurada (a da mira) é ignorada até o jogador mudar de direção ou soltar. A trava zera a
+  cada saque novo.
 
 ## Toques
 

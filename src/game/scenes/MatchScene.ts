@@ -431,14 +431,18 @@ export class MatchScene extends Phaser.Scene {
         .setDepth(LAYER.hud)
         .setSize(r * 2, r * 2)
         .setInteractive(new Phaser.Geom.Circle(r, r, r), Phaser.Geom.Circle.Contains)
-      box.on('pointerdown', (p: Phaser.Input.Pointer) => this.pointers.down(p.id, target))
+      box.on('pointerdown', (p: Phaser.Input.Pointer) => {
+        if (!this.joystick?.owns(p.id)) this.pointers.down(p.id, target)
+      })
       // Dedo que desliza de um botão para outro troca o alvo; sair do botão conta como soltar.
-      box.on('pointerover', (p: Phaser.Input.Pointer) => this.pointers.over(p.id, target, p.isDown))
+      box.on('pointerover', (p: Phaser.Input.Pointer) => {
+        if (!this.joystick?.owns(p.id)) this.pointers.over(p.id, target, p.isDown)
+      })
       box.on('pointerout', (p: Phaser.Input.Pointer) => this.pointers.out(p.id, target))
       return box
     }
     this.joystick = new Joystick(this, 130, 600, 74, (v) => (v ? this.controls.setStick(v.x, v.z) : this.controls.setStick(null)))
-    make(250, 470, 34, '⇄', '[Q]', 0x5e35b1, 'troca')
+    make(290, 430, 34, '⇄', '[Q]', 0x5e35b1, 'troca')
     make(1060, 652, 58, 'FORTE', '[J]', 0xc62828, 'forte')
     make(1190, 652, 58, 'PINGO', '[K]', 0x2e7d32, 'pingo')
     this.sharkButton = make(1125, 540, 44, '🦈', '[Espaço]', 0x00838f, 'shark').setVisible(false)

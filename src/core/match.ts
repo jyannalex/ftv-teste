@@ -209,7 +209,10 @@ function setupServe(s: MatchState): void {
   s.slowMo = null
   if (s.config.humanTeam === s.score.servingTeam) s.controlled = server
   // Botão já segurado (desde a pausa do ponto) não vale para o saque: precisa soltar e apertar de novo.
-  for (const b of s.buttons) b.forteDownAt = null
+  for (const b of s.buttons) {
+    b.forteDownAt = null
+    b.moveLock = null
+  }
   setPhase(s, 'saque')
 }
 
@@ -313,9 +316,9 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
       resolveContact(s, inputs, edges, events)
       updatePositions(s, inputs, gdt)
       if (r.landed) {
-        // A bola que tocou o chão fica ali, mesmo na carência da defesa.
-        s.ball = { ...s.ball, vx: 0, vy: 0, vz: 0 }
-        if (!touchStillPossible(s)) endRally(s, events)
+        // A bola que tocou o chão fica ali enquanto a defesa ainda pode acontecer; depois, quica (visual).
+        if (touchStillPossible(s)) s.ball = { ...s.ball, vx: 0, vy: 0, vz: 0 }
+        else endRally(s, events)
       }
       break
     }

@@ -43,6 +43,11 @@ export class Joystick {
     scene.input.on('gameout', () => this.release())
   }
 
+  /** O dedo é o do joystick (os botões o ignoram ao passar por cima). */
+  owns(pointerId: number): boolean {
+    return pointerId === this.pointerId
+  }
+
   /** Solta sem avisar (os controles já foram zerados). */
   clear(): void {
     this.pointerId = null
