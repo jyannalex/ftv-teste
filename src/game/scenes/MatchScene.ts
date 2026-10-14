@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { createAI, type AIController, type Personality, skillParams } from '../../core/ai'
 import type { TouchAction } from '../../core/touch'
-import { type Athlete, createMatch, IDLE, type MatchEvent, matchConfig, type MatchState, step } from '../../core/match'
+import { type Athlete, cancelHold, createMatch, IDLE, type MatchEvent, matchConfig, type MatchState, step } from '../../core/match'
 import { createRng } from '../../core/rng'
 import type { Side } from '../../core/rules'
 import { BALANCE } from '../../data/balance'
@@ -365,6 +365,7 @@ export class MatchScene extends Phaser.Scene {
     if (paused === this.paused || this.state.phase === 'fim') return
     this.paused = paused
     this.controls.reset()
+    cancelHold(this.state, 0)
     this.ataquePointer = null
     if (!paused) {
       this.pauseLayer?.destroy()

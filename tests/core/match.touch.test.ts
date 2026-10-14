@@ -69,8 +69,9 @@ describe('partida: toques', () => {
     s.lastAttack = { team: 1, force: 1, shark: true }
     s.ball = { x: 1, y: 3.0, vx: -15, vy: -3 }
     s.touch = { team: 1, count: 3, lastAthlete: 2 }
+    s.athletes[0].x = -6.5
     s.plan = planContact(s)
-    expect(s.plan).toMatchObject({ team: 0, incomingShark: true })
+    expect(s.plan).toMatchObject({ team: 0, incomingShark: true, reachable: true })
     const press = pressAt(0, 'recepcao', 0.04)
     const ev = simulate(s, (st, i) => [press(st, i)[0], IDLE], 200, 'ponto')
     expect(ev.some((e) => e.type === 'toque')).toBe(false)

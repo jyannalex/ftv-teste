@@ -180,6 +180,8 @@ function setupServe(s: MatchState): void {
   s.plan = null
   s.pending = null
   s.controlled = s.config.humanTeam === s.score.servingTeam ? server : s.controlled
+  // Botão já segurado (desde a pausa do ponto): o saque conta a partir de agora.
+  for (const h of s.hold) if (h.down) h.startT = s.time
   setPhase(s, 'saque')
 }
 
@@ -191,6 +193,11 @@ function setPhase(s: MatchState, phase: MatchPhase): void {
 export function setAction(a: Athlete, action: AthleteAction): void {
   a.action = action
   a.actionT = 0
+}
+
+/** Esquece o botão segurado sem contar como soltar (pausa, perda de foco). */
+export function cancelHold(s: MatchState, team: Side): void {
+  s.hold[team].down = false
 }
 
 /** Atualiza o rastreio do segurar e devolve quanto tempo (ms) cada time segurou, se soltou neste passo. */
@@ -238,17 +245,34 @@ function windowsOf(s: MatchState, plan: ContactPlan): Windows {
   })
 }
 
+/** Antes da janela, apertar até este tempo (s) antes dela conta como furada; antes disso é ignorado. */
+const WHIFF_SPAN = 0.35
+
 const TOUCH_ACTIONS: Record<1 | 2 | 3, TouchAction> = { 1: 'passe', 2: 'levantada', 3: 'devolucao' }
 
 /** Lê a entrada do time do plano e, se estiver na janela, agenda o toque. */
-function readTouchInput(s: MatchState, inputs: [TeamInput, TeamInput], released: [number | null, number | null]): void {
+function readTouchInput(
+  s: MatchState,
+  inputs: [TeamInput, TeamInput],
+  released: [number | null, number | null],
+  events: MatchEvent[],
+): void {
   const plan = s.plan
   if (!plan || s.pending || !plan.reachable) return
   const pressed = inputs[plan.team].recepcao
   const holdMs = released[plan.team]
   if (!pressed && holdMs === null) return
-  const grade = gradeTiming(s.time - plan.tIdeal, windowsOf(s, plan))
-  if (grade === null) return
+  const w = windowsOf(s, plan)
+  const offset = s.time - plan.tIdeal
+  const grade = gradeTiming(offset, w)
+  if (grade === null) {
+    // Cedo demais (mas perto): furou. Apertar sem parar não garante mais um toque.
+    if (offset < 0 && offset > -(w.ruim + WHIFF_SPAN)) {
+      events.push({ type: 'erroTiming', athleteId: plan.athleteId })
+      s.plan = null
+    }
+    return
+  }
   const executeAt = Math.max(s.time, plan.tIdeal)
   if (pressed) {
     s.pending = { action: TOUCH_ACTIONS[plan.touchIndex], grade, executeAt }
@@ -289,7 +313,7 @@ function executeTouch(s: MatchState, plan: ContactPlan, p: PendingTouch, events:
 
 /** Toques e erros de timing durante o rally. */
 function stepContacts(s: MatchState, inputs: [TeamInput, TeamInput], released: [number | null, number | null], events: MatchEvent[]): void {
-  readTouchInput(s, inputs, released)
+  readTouchInput(s, inputs, released, events)
   const plan = s.plan
   if (plan && s.pending && s.time >= s.pending.executeAt) {
     executeTouch(s, plan, s.pending, events)

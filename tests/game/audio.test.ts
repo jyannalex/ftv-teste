@@ -71,3 +71,16 @@ describe('áudio antes do primeiro toque', () => {
     expect(counts.osc + counts.buffer).toBe(0)
   })
 })
+
+describe('música', () => {
+  it('syncMusic liga com contexto pronto e desliga pelas opções', () => {
+    const { ctx } = fakeCtx()
+    const opts = { sound: true, music: true }
+    const audio = createAudio(() => ctx, () => opts)
+    audio.syncMusic()
+    expect(audio.isMusicPlaying()).toBe(true)
+    opts.music = false
+    audio.syncMusic()
+    expect(audio.isMusicPlaying()).toBe(false)
+  })
+})

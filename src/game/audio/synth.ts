@@ -9,6 +9,7 @@ export type Audio = {
   playSfx(key: SfxKey): void
   /** Liga ou desliga a música conforme as opções. */
   syncMusic(): void
+  isMusicPlaying(): boolean
 }
 
 const BPM = 96
@@ -149,6 +150,7 @@ export function createAudio(getCtx: () => AudioContext | null, getOptions: () =>
         // Sem som, sem problema.
       }
     },
+    isMusicPlaying: () => musicTimer !== null,
     syncMusic() {
       const want = getOptions().music
       if (!want) return stopMusic()

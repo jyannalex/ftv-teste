@@ -9,7 +9,11 @@ export type TouchAction = 'passe' | 'levantada' | 'devolucao' | 'pingo' | 'forte
 
 export function windowsFor(ctx: { incomingForce: number; incomingShark: boolean; easyAssist: boolean }): Windows {
   const easy = ctx.easyAssist ? BALANCE.easyWindowScale : 1
-  if (ctx.incomingShark) return { perfeito: BALANCE.sharkWindow * easy, bom: 0, ruim: 0 }
+  if (ctx.incomingShark) {
+    // Só Perfeito: as três faixas coincidem (dentro dela é sempre Perfeito; fora, nada).
+    const w = BALANCE.sharkWindow * easy
+    return { perfeito: w, bom: w, ruim: w }
+  }
   const k = easy * (1 - BALANCE.forceWindowShrink * ctx.incomingForce)
   const w = BALANCE.windows
   return { perfeito: w.perfeito * k, bom: w.bom * k, ruim: w.ruim * k }

@@ -1,5 +1,6 @@
 import { BALANCE } from '../data/balance'
 import { DT, IDLE, type MatchState, type TeamInput } from './match'
+import { predictLanding } from './physics'
 import type { Rng } from './rng'
 import type { Side } from './rules'
 import { isMeterFull } from './specialMeter'
@@ -38,6 +39,8 @@ const PINGO_HOLD_MS = 90
 const SERVE_WAIT_SEC = 1
 /** Placar a partir do qual a IA forte solta o Sharkataque guardado. */
 const DECISIVE_POINTS = 9
+/** Bola do adversário que vai cair além disso (m) da linha: a IA tende a deixar sair. */
+const OUT_MARGIN = 0.3
 
 /** Força (0..1) que manda a bola para a profundidade mais longe dos dois defensores. */
 export function gapForce(defenderDists: number[]): number {
@@ -72,6 +75,9 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
       if (rng.next() >= p.sharkDefenseChance) return { key, button: 'nada', at: 0, holdMs: 0, done: true }
       offset = 0
     }
+    // Bola do adversário indo para fora: quanto mais habilidosa, mais a IA deixa sair.
+    const goingOut = Math.abs(predictLanding(s.ball).x) > BALANCE.halfCourt + OUT_MARGIN
+    if (plan.touchIndex === 1 && goingOut && rng.next() < 0.4 + 0.6 * skill) return { key, button: 'nada', at: 0, holdMs: 0, done: true }
     const at = plan.tIdeal + offset
     if (plan.touchIndex < 3) return { key, button: 'recepcao', at, holdMs: 0, done: false }
 
