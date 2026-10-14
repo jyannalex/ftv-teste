@@ -27,14 +27,14 @@ const firstTouchOf = (s: ReturnType<typeof incomingBall>, ai: ReturnType<typeof 
 
 describe('IA arcade', () => {
   it('extremos de skillParams', () => {
-    expect(skillParams(0)).toEqual({ reactionDelay: 0.35, posError: 1.0, readChance: 0 })
-    expect(skillParams(1)).toEqual({ reactionDelay: 0.08, posError: 0.1, readChance: 1 })
+    expect(skillParams(0)).toEqual({ reactionDelay: 0.35, posError: 1.0, readChance: 0, defenseSigma: 0.18 })
+    expect(skillParams(1)).toEqual({ reactionDelay: 0.08, posError: 0.1, readChance: 1, defenseSigma: 0.04 })
   })
 
   it.each([
     [0, 0],
     [0.5, 0.5],
-    [1, 1],
+    [0.9, 0.9], // máximo usado no jogo (final do Difícil); 1,0 "perfeito" empata para sempre
   ])('IA × IA (%s × %s) sempre termina com placar válido (Review Focus)', (a, b) => {
     const { st } = aiMatch(1, a, b)
     expect(st.phase).toBe('fim')

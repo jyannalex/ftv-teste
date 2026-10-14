@@ -14,6 +14,8 @@ export type SkillParams = {
   posError: number
   /** Chance de "ler" a defesa na escolha e na mira do ataque. */
   readChance: number
+  /** Desvio padrão do tempo do botão DEFENDER (s). */
+  defenseSigma: number
 }
 
 const lerp = (a: number, b: number, t: number) => a * (1 - t) + b * t
@@ -24,6 +26,7 @@ export function skillParams(skill: number): SkillParams {
     reactionDelay: lerp(0.35, 0.08, k),
     posError: lerp(1.0, 0.1, k),
     readChance: k,
+    defenseSigma: lerp(0.18, 0.04, k),
   }
 }
 
@@ -47,8 +50,6 @@ const PINGO_BIAS: Record<Personality, number> = { equilibrado: 0, gostaDePingo: 
 const RANDOM_PINGO_CHANCE = 0.3
 /** Defensor mais perto da rede além disso: o Pingo é o ataque certo. */
 const DEEP_DEFENSE = 4.5
-/** Placar a partir do qual a IA forte solta o Sharkataque guardado. */
-const DECISIVE_POINTS = 9
 const SERVE_WAIT_SEC = 1
 const SERVE_HOLD_SEC = 0.1
 /** Antecedência do aperto do ataque (s). */
@@ -59,6 +60,8 @@ type Decision = {
   key: string
   posError: number
   attackPressed: boolean
+  defenseAt: number | null
+  defensePressed: boolean
   attackButton: 'forte' | 'pingo' | 'shark'
   aim: Aim
 }
@@ -80,8 +83,7 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
     const deep = Math.min(...defenders) > DEEP_DEFENSE
     const pingoChance = (reads ? (deep ? 1 : 0) : RANDOM_PINGO_CHANCE) + PINGO_BIAS[personality]
     const aim = rng.next() < p.readChance ? bestAim(defenders) : AIMS[Math.floor(rng.next() * 3)]
-    const saveShark = skill >= 0.5 && Math.max(...s.score.points) < DECISIVE_POINTS
-    if (isMeterFull(s.meter[team]) && !saveShark) return { attackButton: 'shark', aim }
+    if (isMeterFull(s.meter[team])) return { attackButton: 'shark', aim }
     if (rng.next() < pingoChance) return { attackButton: 'pingo', aim: 'meio' }
     return { attackButton: 'forte', aim }
   }
@@ -107,7 +109,8 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
       const key = `${plan.athleteId}:${plan.createdAt.toFixed(4)}`
       if (decision?.key !== key) {
         const error = rng.normal(0, p.posError * (personality === 'paredao' ? 0.7 : 1))
-        decision = { key, posError: error, attackPressed: false, attackButton: 'forte', aim: 'meio' }
+        const defenseAt = plan.incoming && plan.touchIndex === 1 ? plan.tIdeal + rng.normal(0, p.defenseSigma) : null
+        decision = { key, posError: error, attackPressed: false, attackButton: 'forte', aim: 'meio', defenseAt, defensePressed: false }
       }
       const d = decision
       const athlete = s.athletes[plan.athleteId]
@@ -122,6 +125,12 @@ export function createAI(team: Side, skill: number, personality: Personality, rn
         const movingToward = Math.sign(athlete.vx) === Math.sign(gap)
         const stopDist = movingToward ? (athlete.vx * athlete.vx) / (2 * BALANCE.move.decel) : 0
         if (Math.abs(gap) > ARRIVE_TOLERANCE + stopDist) input.move = gap > 0 ? 1 : -1
+      }
+
+      // Defesa: aperta DEFENDER no tempo sorteado.
+      if (d.defenseAt !== null && !d.defensePressed && now >= d.defenseAt) {
+        d.defensePressed = true
+        input.forte = true
       }
 
       // Ataque: escolhe e aperta pouco antes do contato; no contato, a direção é a mira.

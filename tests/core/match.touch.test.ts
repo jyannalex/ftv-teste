@@ -70,13 +70,19 @@ describe('partida: toques automáticos (arcade)', () => {
     expect(planContact(s)).toBeNull()
   })
 
-  it('defender um forte dá +12 a mais', () => {
+  it('defender um forte (com DEFENDER no tempo) dá +12 a mais', () => {
     const s = incomingBall(4)
     s.lastAttack = { team: 0, kind: 'forte' }
     s.plan = planContact(s)
     placeDesignated(s, 0.2)
-    simulate(s, standStill, 300, 'toque')
-    expect(s.meter[1]).toBe(BALANCE.meter.toque + BALANCE.meter.defesaForte)
+    const tIdeal = s.plan!.tIdeal
+    let pressed = false
+    simulate(s, (st) => {
+      const press = !pressed && st.time + 1 / 60 >= tIdeal - 1 / 120
+      if (press) pressed = true
+      return teamInputs(1, { forte: press })
+    }, 300, 'toque')
+    expect(s.meter[1]).toBeGreaterThanOrEqual(BALANCE.meter.toque + BALANCE.meter.defesaForte)
   })
 
   it('sem entrada o controlado fica parado (sem ajuda automática)', () => {

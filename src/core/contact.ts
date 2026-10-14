@@ -1,5 +1,6 @@
 import { BALANCE } from '../data/balance'
 import type { Athlete, AthleteAction, ContactPlan, MatchState, TeamInput } from './match'
+import type { Edges } from './resolve'
 import { positionAt, predictLanding, timeToHeight } from './physics'
 import { partner, type Side, sideOf, sideSign, teamOf } from './rules'
 
@@ -27,6 +28,10 @@ export function planContact(s: MatchState): ContactPlan | null {
   if (continuing && t.lastAthlete !== null) {
     athleteId = partner(t.lastAthlete)
     touchIndex = (t.count + 1) as 2 | 3
+  } else if (team === s.config.humanTeam && s.controlled !== null && teamOf(s.controlled) === team) {
+    // 1º toque do jogador: vai quem ele está controlando (troca com W).
+    athleteId = s.controlled
+    touchIndex = 1
   } else {
     const [a, b] = s.athletes.filter((x) => x.team === team)
     athleteId = Math.abs(a.x - landing.x) <= Math.abs(b.x - landing.x) ? a.id : b.id
@@ -50,7 +55,8 @@ export function planContact(s: MatchState): ContactPlan | null {
   const chosen =
     touchIndex === 3 && options[0].kind === 'cabeca' ? options[0] : (options.find((c) => c.reachable) ?? options[options.length - 1])
 
-  const incoming = s.lastAttack && s.lastAttack.team !== team && s.lastAttack.kind === 'forte' ? 'forte' : null
+  const la = s.lastAttack
+  const incoming = la && la.team !== team && (la.kind === 'forte' || la.kind === 'pingo') ? la.kind : null
   return {
     athleteId,
     team,
@@ -64,6 +70,18 @@ export function planContact(s: MatchState): ContactPlan | null {
     choice: null,
     jumpChecked: false,
   }
+}
+
+/** Botão W: troca o atleta controlado; se a bola vem para o 1º toque, quem vai é o novo controlado. */
+export function switchControlled(s: MatchState, edges: [Edges, Edges]): void {
+  const team = s.config.humanTeam
+  if (team === null || !edges[team].trocaDown || s.slowMo || s.controlled === null) return
+  const plan = s.plan
+  // 2º e 3º toque: o atleta é obrigatório pela regra.
+  if (plan && plan.team === team && plan.touchIndex > 1) return
+  if (s.phase === 'saque' && s.score.servingTeam === team) return
+  s.controlled = partner(s.controlled)
+  if (plan && plan.team === team) plan.athleteId = s.controlled
 }
 
 /** Replaneja depois de qualquer mudança de trajetória e troca o atleta controlado. */

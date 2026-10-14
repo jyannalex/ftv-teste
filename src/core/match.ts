@@ -1,5 +1,5 @@
 import { BALANCE } from '../data/balance'
-import { replan, setAction, updatePositions } from './contact'
+import { replan, setAction, switchControlled, updatePositions } from './contact'
 import { type Ball, bounceDead, launchVelocity, stepBall } from './physics'
 import { type Edges, resolveContact, touchStillPossible } from './resolve'
 import { createRng, type Rng } from './rng'
@@ -30,8 +30,10 @@ export type TeamInput = {
   pingo: boolean
   /** Sharkataque, segurado. */
   shark: boolean
+  /** Trocar o atleta controlado (W), segurado. */
+  troca: boolean
 }
-export const IDLE: TeamInput = { move: 0, forte: false, pingo: false, shark: false }
+export const IDLE: TeamInput = { move: 0, forte: false, pingo: false, shark: false, troca: false }
 
 export type MatchConfig = {
   seed: number
@@ -77,6 +79,7 @@ export type ButtonTrack = {
   forte: boolean
   pingo: boolean
   shark: boolean
+  troca: boolean
   /** Último aperto do botão esquerdo (tempo da partida). */
   fortePressAt: number | null
   /** Quando o botão esquerdo foi apertado e segue segurado; null se o aperto não vale (veio de antes). */
@@ -93,8 +96,8 @@ export type ContactPlan = {
   /** Tempo absoluto da partida em que a bola chega ao ponto de contato. */
   tIdeal: number
   createdAt: number
-  /** Ataque que vem do outro time (para o bônus de defesa). */
-  incoming: 'forte' | null
+  /** Ataque que vem do outro time: pede o botão DEFENDER. */
+  incoming: 'forte' | 'pingo' | null
   /** Escolha de ataque do 3º toque (a última borda de botão). */
   choice: 'forte' | 'pingo' | 'sharkataque' | null
   /** Já conferiu se o jogador pula para a câmera lenta. */
@@ -115,7 +118,7 @@ export type MatchState = {
   touch: TouchState
   meter: [number, number]
   buttons: [ButtonTrack, ButtonTrack]
-  lastAttack: { team: Side; kind: 'forte' | 'shark' } | null
+  lastAttack: { team: Side; kind: 'forte' | 'pingo' | 'shark' } | null
   plan: ContactPlan | null
   /** Câmera lenta do ataque do jogador. */
   slowMo: { athleteId: number; aim: Aim } | null
@@ -128,12 +131,13 @@ export type MatchEvent =
   | { type: 'saque'; athleteId: number }
   | { type: 'toque'; athleteId: number; action: TouchAction }
   | { type: 'perdeu'; athleteId: number }
+  | { type: 'defesa'; athleteId: number; perfeita: boolean }
   | { type: 'rede' }
   | { type: 'sharkataque'; athleteId: number }
   | { type: 'ponto'; winner: Side; reason: PointReason }
   | { type: 'fimDeSet'; winner: Side }
 
-const freshButtons = (): ButtonTrack => ({ forte: false, pingo: false, shark: false, fortePressAt: null, forteDownAt: null })
+const freshButtons = (): ButtonTrack => ({ forte: false, pingo: false, shark: false, troca: false, fortePressAt: null, forteDownAt: null })
 
 export function createMatch(config: MatchConfig): MatchState {
   const athletes: Athlete[] = [0, 1, 2, 3].map((id) => ({
@@ -215,6 +219,7 @@ function trackButtons(s: MatchState, inputs: [TeamInput, TeamInput]): [Edges, Ed
       forteUp: !i.forte && b.forte,
       pingoDown: i.pingo && !b.pingo,
       sharkDown: i.shark && !b.shark,
+      trocaDown: i.troca && !b.troca,
     }
     if (e.forteDown) {
       b.fortePressAt = s.time
@@ -223,6 +228,7 @@ function trackButtons(s: MatchState, inputs: [TeamInput, TeamInput]): [Edges, Ed
     b.forte = i.forte
     b.pingo = i.pingo
     b.shark = i.shark
+    b.troca = i.troca
     return e
   }) as [Edges, Edges]
 }
@@ -274,6 +280,7 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
     case 'saque': {
       const team = s.score.servingTeam
       const b = s.buttons[team]
+      if (s.config.humanTeam !== team) switchControlled(s, edges)
       if (edges[team].forteUp && b.forteDownAt !== null) serve(s, aimFromMove(team, inputs[team].move), events)
       else if (s.phaseT >= BALANCE.autoServeSec) serve(s, 'meio', events)
       break
@@ -285,6 +292,7 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
         events.push({ type: 'rede' })
         replan(s)
       }
+      switchControlled(s, edges)
       resolveContact(s, inputs, edges, events)
       updatePositions(s, inputs, gdt)
       if (r.landed && !touchStillPossible(s)) endRally(s, events)

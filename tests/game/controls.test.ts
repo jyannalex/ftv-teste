@@ -36,5 +36,5 @@ it('reset solta tudo sem gerar toque (Review Focus)', () => {
   c.setButton('shark', true)
   c.setMove(1, true)
   c.reset()
-  expect(c.consume()).toEqual({ move: 0, forte: false, pingo: false, shark: false })
+  expect(c.consume()).toEqual({ move: 0, forte: false, pingo: false, shark: false, troca: false })
 })

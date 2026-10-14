@@ -1,12 +1,12 @@
 import type { TeamInput } from '../../core/match'
 
-export type ButtonName = 'forte' | 'pingo' | 'shark'
+export type ButtonName = 'forte' | 'pingo' | 'shark' | 'troca'
 
 /** Estado dos controles (toque e teclado), lido uma vez por passo da simulação. */
 export class Controls {
-  private down: Record<ButtonName, boolean> = { forte: false, pingo: false, shark: false }
+  private down: Record<ButtonName, boolean> = { forte: false, pingo: false, shark: false, troca: false }
   /** Apertado desde o último consumo: um toque rápido não se perde entre dois passos. */
-  private latched: Record<ButtonName, boolean> = { forte: false, pingo: false, shark: false }
+  private latched: Record<ButtonName, boolean> = { forte: false, pingo: false, shark: false, troca: false }
   /** Direções seguradas, a mais recente por último. */
   private moves: (-1 | 1)[] = []
 
@@ -26,15 +26,16 @@ export class Controls {
       forte: this.down.forte || this.latched.forte,
       pingo: this.down.pingo || this.latched.pingo,
       shark: this.down.shark || this.latched.shark,
+      troca: this.down.troca || this.latched.troca,
     }
-    this.latched = { forte: false, pingo: false, shark: false }
+    this.latched = { forte: false, pingo: false, shark: false, troca: false }
     return input
   }
 
   /** Pausa, perda de foco: nada fica segurado nem travado. */
   reset(): void {
-    this.down = { forte: false, pingo: false, shark: false }
-    this.latched = { forte: false, pingo: false, shark: false }
+    this.down = { forte: false, pingo: false, shark: false, troca: false }
+    this.latched = { forte: false, pingo: false, shark: false, troca: false }
     this.moves = []
   }
 }

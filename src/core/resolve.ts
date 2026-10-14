@@ -5,7 +5,7 @@ import { registerTouch } from './rules'
 import { addMeter, isMeterFull } from './specialMeter'
 import { type Aim, aimFromMove, outgoing, type TouchAction } from './touch'
 
-export type Edges = { forteDown: boolean; forteUp: boolean; pingoDown: boolean; sharkDown: boolean }
+export type Edges = { forteDown: boolean; forteUp: boolean; pingoDown: boolean; sharkDown: boolean; trocaDown: boolean }
 
 const AUTO: Record<1 | 2, TouchAction> = { 1: 'passe', 2: 'levantada' }
 
@@ -19,11 +19,12 @@ export function executeTouch(
   aim: Aim,
   events: MatchEvent[],
   from = { x: plan.x, y: plan.y },
+  precise = false,
 ): void {
   const team = plan.team
   const shark = action === 'sharkataque'
   const origin = { x: from.x, y: from.y + (shark ? BALANCE.sharkExtraHeight : 0) }
-  const v = outgoing({ action, team, from: origin, aim }, s.rng)
+  const v = outgoing({ action, team, from: origin, aim, precise }, s.rng)
   s.ball = { ...origin, vx: v.vx, vy: v.vy }
   s.touch = registerTouch(s.touch, plan.athleteId)
 
@@ -35,7 +36,8 @@ export function executeTouch(
     s.meter[team] = 0
     events.push({ type: 'sharkataque', athleteId: plan.athleteId })
   }
-  s.lastAttack = action === 'forte' || shark ? { team, kind: shark ? 'shark' : 'forte' } : null
+  s.lastAttack =
+    action === 'forte' || action === 'pingo' || shark ? { team, kind: shark ? 'shark' : action === 'pingo' ? 'pingo' : 'forte' } : null
   setAction(s.athletes[plan.athleteId], VISUAL[action] ?? plan.kind)
   s.slowMo = null
   replan(s)
@@ -85,11 +87,11 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
   const team = plan.team
   if (slowMoAttack(s, plan, inputs, edges, events)) return
   if (plan.touchIndex === 3) recordChoice(s, plan, edges[team])
+  if (plan.incoming && plan.touchIndex === 1) return defend(s, plan, inputs, events)
   if (s.time < plan.tIdeal) return
 
   const d = Math.abs(s.athletes[plan.athleteId].x - plan.x)
-  const reach = reachOf(s, plan.athleteId) * (plan.incoming === 'forte' ? BALANCE.vsForte.reachScale : 1)
-  if (d <= reach) {
+  if (d <= reachOf(s, plan.athleteId)) {
     const action: TouchAction = plan.touchIndex === 3 ? (plan.choice ?? 'fraco') : AUTO[plan.touchIndex]
     executeTouch(s, plan, action, aimFromMove(team, inputs[team].move), events)
     return
@@ -98,8 +100,33 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
   s.plan = null
 }
 
+/**
+ * Defesa de ataque (forte/Pingo): precisa do botão DEFENDER (esquerdo) perto do contato e o atleta
+ * a até 1,5 m da bola. Bem no tempo é DEFESAÇA (passe perfeito e bônus).
+ */
+function defend(s: MatchState, plan: ContactPlan, inputs: [TeamInput, TeamInput], events: MatchEvent[]): void {
+  const def = BALANCE.defense
+  const press = s.buttons[plan.team].fortePressAt
+  const offset = press === null ? Infinity : press - plan.tIdeal
+  const pressed = press !== null && Math.abs(offset) <= def.window && press >= plan.createdAt
+  const d = Math.abs(s.athletes[plan.athleteId].x - plan.x)
+  if (pressed && s.time >= plan.tIdeal && d <= def.reach) {
+    const perfeita = Math.abs(offset) <= def.perfect
+    if (perfeita) s.meter[plan.team] = addMeter(s.meter[plan.team], BALANCE.meter.defesaPerfeita)
+    events.push({ type: 'defesa', athleteId: plan.athleteId, perfeita })
+    executeTouch(s, plan, 'passe', aimFromMove(plan.team, inputs[plan.team].move), events, { x: plan.x, y: plan.y }, perfeita)
+    return
+  }
+  if (s.time > plan.tIdeal + def.window) {
+    events.push({ type: 'perdeu', athleteId: plan.athleteId })
+    s.plan = null
+  }
+}
+
 /** Enquanto o toque ainda pode acontecer, a bola não "cai" (ele sai do ponto planejado). */
 export function touchStillPossible(s: MatchState): boolean {
   const plan = s.plan
-  return plan !== null && s.time <= plan.tIdeal + BALANCE.contactGrace
+  if (!plan) return false
+  const grace = plan.incoming && plan.touchIndex === 1 ? BALANCE.defense.window : BALANCE.contactGrace
+  return s.time <= plan.tIdeal + grace
 }

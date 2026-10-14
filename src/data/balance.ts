@@ -18,8 +18,10 @@ export const BALANCE = {
   reach: 0.7,
   /** Folga depois do contato planejado em que a bola ainda não conta como caída (s). */
   contactGrace: 0.05,
-  /** Contra ataque forte a bola chega rápida: alcance automático menor e a IA reage mais devagar. */
-  vsForte: { reachScale: 0.85, aiExtraReaction: 0.15 },
+  /** Contra ataque forte a bola chega rápida: a IA reage mais devagar. */
+  vsForte: { aiExtraReaction: 0.15 },
+  /** Defesa de ataque (forte/Pingo): botão DEFENDER, alcance (m) e janelas de tempo (s). */
+  defense: { reach: 1.5, window: 0.2, perfect: 0.07 },
   /** Bola com pouso além da linha mais esta margem: ninguém toca. */
   outMargin: 0.3,
   /** Câmera lenta do ataque do jogador. */
@@ -27,10 +29,10 @@ export const BALANCE = {
   /** Mira do ataque e do saque (distância da rede). */
   aimDepth: { curto: 2.5, meio: 5.0, fundo: 7.8 },
   serveDepth: { curto: 3.0, meio: 5.5, fundo: 8.0 },
-  attack: { forteTime: 0.6, sharkTime: 0.32, pingoDist: 1.2, fracoDepth: 5.0, fracoApex: 4.0 },
+  attack: { forteTime: 0.45, sharkTime: 0.32, pingoDist: 1.2, fracoDepth: 5.0, fracoApex: 4.0 },
   /** Erro de alvo dos toques (m, para mais ou para menos). */
   aimError: 0.4,
-  meter: { toque: 5, defesaForte: 12, ponto: 10, max: 100 },
+  meter: { toque: 5, defesaForte: 12, defesaPerfeita: 10, ponto: 10, max: 100 },
 
   /** Posição x (em módulo) do sacador, atrás da linha de fundo. */
   serveX: 9.5,
