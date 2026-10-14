@@ -117,3 +117,10 @@ export function poseFor(action: AthleteAction, t: number): Pose {
   }
   return interpolate(KEYS[action], u)
 }
+
+/** Mistura duas poses (k = 0 → a, k = 1 → b), para trocar de animação sem pulo. */
+export function blendPose(a: Pose, b: Pose, k: number): Pose {
+  const out = { ...a }
+  for (const name of Object.keys(a) as (keyof Pose)[]) out[name] = lerp(a[name], b[name], k)
+  return out
+}

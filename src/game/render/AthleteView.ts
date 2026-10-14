@@ -4,7 +4,16 @@ import type { Pose } from './poses'
 import { PX_PER_M, toScreenX, toScreenY } from './view'
 
 export type HairStyle = 'curto' | 'rabo' | 'blackPower' | 'bone'
-export type AthleteLook = { shirt: number; shorts: number; skin: number; hair: number; style: HairStyle }
+export type AthleteLook = { shirt: number; shorts: number; skin: number; hair: number; style: HairStyle; number: number }
+
+/**
+ * Quem desenha um atleta. Hoje: AthleteView (desenho por código). Para trocar por sprites,
+ * basta outra classe com esta interface (formato dos sprites no README).
+ */
+export type AthleteRenderer = {
+  draw(a: Athlete, p: Pose): void
+  topOf(a: Athlete, p: Pose): { x: number; y: number }
+}
 
 // Medidas do corpo em metros (atleta de ~1,9 m).
 const THIGH = 0.48
@@ -23,15 +32,23 @@ const limb = (from: V, angle: number, len: number): V => ({ x: from.x + Math.sin
 const up = (from: V, angle: number, len: number): V => ({ x: from.x + Math.sin(angle) * len, y: from.y + Math.cos(angle) * len })
 const lerpV = (a: V, b: V, t: number): V => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
 
+/** Versão mais clara da cor (para o sombreado). */
+function lighten(c: number, k = 1.28): number {
+  const col = Phaser.Display.Color.IntegerToColor(c)
+  const f = (v: number) => Math.min(255, v * k + 18)
+  return Phaser.Display.Color.GetColor(f(col.red), f(col.green), f(col.blue))
+}
+
 function shade(c: number, k: number): number {
   const col = Phaser.Display.Color.IntegerToColor(c)
   return Phaser.Display.Color.GetColor(col.red * k, col.green * k, col.blue * k)
 }
 
 /** Atleta articulado, fino, com contorno escuro. Frente local = +x; o time da direita é espelhado. */
-export class AthleteView {
+export class AthleteView implements AthleteRenderer {
   private g: Phaser.GameObjects.Graphics
   private shadow: Phaser.GameObjects.Ellipse
+  private num: Phaser.GameObjects.Text
 
   constructor(
     scene: Phaser.Scene,
@@ -40,6 +57,10 @@ export class AthleteView {
   ) {
     this.shadow = scene.add.ellipse(0, 0, 46, 9, 0x000000, 0.25)
     this.g = scene.add.graphics()
+    const light = Phaser.Display.Color.IntegerToColor(look.shirt).v > 0.6
+    this.num = scene.add
+      .text(0, 0, String(look.number), { fontFamily: 'Arial Black, Arial', fontSize: '11px', color: light ? '#1a1a24' : '#ffffff' })
+      .setOrigin(0.5)
   }
 
   draw(a: Athlete, p: Pose): void {
@@ -73,6 +94,8 @@ export class AthleteView {
       g.fillStyle(OUTLINE, 1).fillCircle(A.x, A.y, (w + 3) / 2).fillCircle(B.x, B.y, (w + 3) / 2)
       g.lineStyle(w, color, 1).lineBetween(A.x, A.y, B.x, B.y)
       g.fillStyle(color, 1).fillCircle(A.x, A.y, w / 2).fillCircle(B.x, B.y, w / 2)
+      // Luz vinda de cima: uma faixa mais clara no segmento.
+      if (w >= 5) g.lineStyle(Math.max(1.5, w * 0.35), lighten(color), 0.9).lineBetween(A.x - 1, A.y - 1, B.x - 1, B.y - 1)
     }
     const shoe = (foot: V, shinAngle: number, color: number) => {
       // Tênis: para a frente, perpendicular à canela.
@@ -109,6 +132,12 @@ export class AthleteView {
       }),
       true,
     )
+    // Listra na camisa e número no peito.
+    const s1 = P(lerpV(hip, shoulder, 0.62))
+    const sp = { x: perp.x * PX_PER_M * 0.13 * this.facing, y: -perp.y * PX_PER_M * 0.13 }
+    g.lineStyle(2.5, lighten(shirt, 1.5), 0.9).lineBetween(s1.x - sp.x, s1.y - sp.y, s1.x + sp.x, s1.y + sp.y)
+    const mid = P(lerpV(hip, shoulder, 0.4))
+    this.num.setPosition(mid.x, mid.y).setRotation(Math.atan2(dir.x * this.facing, dir.y) * 1)
     seg(neck, lerpV(neck, shoulder, 0.5), 5, skin)
 
     // Perna da frente com short.
@@ -116,6 +145,11 @@ export class AthleteView {
     seg(kneeD, footD, 6, skin)
     shoe(footD, shinAngD, 0x263238)
     seg(hip, lerpV(hip, kneeD, 0.45), 9, shorts)
+    {
+      const A = P(hip)
+      const B = P(lerpV(hip, kneeD, 0.42))
+      g.lineStyle(1.5, 0xffffff, 0.85).lineBetween(A.x, A.y, B.x, B.y)
+    }
 
     // Cabeça e cabelo.
     const H = P(head)
@@ -124,6 +158,7 @@ export class AthleteView {
     g.fillStyle(skin, 1).fillCircle(H.x, H.y, r)
     const f = this.facing
     g.fillStyle(OUTLINE, 1).fillCircle(H.x + f * r * 0.45, H.y - r * 0.1, 1.4)
+    g.lineStyle(1.2, 0x7a3b2e, 1).lineBetween(H.x + f * r * 0.3, H.y + r * 0.42, H.x + f * r * 0.62, H.y + r * 0.36)
     g.fillStyle(hair, 1)
     switch (style) {
       case 'curto':

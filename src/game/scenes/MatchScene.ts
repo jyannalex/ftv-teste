@@ -16,11 +16,11 @@ import { PointerRouter } from '../input/pointers'
 import { getSession } from '../session'
 import { createFixedStepper, type FixedStepper } from '../loop/fixedStep'
 import { type ArenaRuntime, drawArena } from '../render/arenas'
-import { AthleteView, type HairStyle } from '../render/AthleteView'
+import { type AthleteRenderer, AthleteView, type HairStyle } from '../render/AthleteView'
 import { BallView } from '../render/BallView'
 import { BallTrail, GroundMarks, hitFlash, SlowMoFx, sandPuff, sharkEffect } from '../render/effects'
 import { Hud } from '../render/Hud'
-import { ACTION_DURATION, LOOPING, type Pose, poseFor } from '../render/poses'
+import { ACTION_DURATION, blendPose, LOOPING, type Pose, poseFor } from '../render/poses'
 import { toScreenX, toScreenY } from '../render/view'
 
 export type MatchSceneData = {
@@ -47,6 +47,12 @@ const FONT = 'Arial Black, Arial, sans-serif'
 const SKINS = [0xf1c27d, 0x8d5524, 0xc68642, 0xe0ac69]
 const HAIRS = [0x2b1b0e, 0xf5d76e, 0x111111, 0x4a2c17]
 const STYLES: HairStyle[] = ['curto', 'rabo', 'blackPower', 'bone']
+const NUMBERS = [7, 10, 2, 9]
+const COURT_COLORS: Record<ArenaId, [number, number]> = {
+  praia: [0xe0707e, 0xd2475f],
+  clube: [0x5b8ed6, 0x3a6bbd],
+  arena: [0xd2475f, 0xb02a44],
+}
 /** Fração da animação em que acontece o contato com a bola. */
 const CONTACT_KEY: Partial<Record<Athlete['action'], number>> = {
   chapa: 0.4,
@@ -66,10 +72,13 @@ export class MatchScene extends Phaser.Scene {
   private ai!: AIController
   private controls = new Controls()
   private stepper!: FixedStepper
-  private athleteViews: AthleteView[] = []
+  private athleteViews: AthleteRenderer[] = []
   private ballView!: BallView
   private hud!: Hud
-  private prevX: number[] = []
+  /** Pose mostrada (suavizada) e fase da corrida de cada atleta. */
+  private shown: (Pose | null)[] = [null, null, null, null]
+  private runPhase = [0, 0, 0, 0]
+  private prevVx = [0, 0, 0, 0]
   private paused = false
   private pauseLayer?: Phaser.GameObjects.Container
   private endT = 0
@@ -96,6 +105,9 @@ export class MatchScene extends Phaser.Scene {
     this.athleteViews = []
     this.controls.reset()
     this.pointers.clear()
+    this.shown = [null, null, null, null]
+    this.runPhase = [0, 0, 0, 0]
+    this.prevVx = [0, 0, 0, 0]
   }
 
   create(): void {
@@ -117,7 +129,7 @@ export class MatchScene extends Phaser.Scene {
       { shirt: opponent.shirt, shorts: opponent.shorts },
     ]
     for (const a of this.state.athletes) {
-      const look = { ...looks[a.id], skin: SKINS[a.id], hair: HAIRS[a.id], style: STYLES[a.id] }
+      const look = { ...looks[a.id], skin: SKINS[a.id], hair: HAIRS[a.id], style: STYLES[a.id], number: NUMBERS[a.id] }
       this.athleteViews.push(new AthleteView(this, look, a.team === 0 ? 1 : -1))
     }
     this.drawNet()
@@ -125,8 +137,6 @@ export class MatchScene extends Phaser.Scene {
     this.ballView = new BallView(this)
     this.hud = new Hud(this, [this.cfg.player.name, opponent.name])
     this.slowFx = new SlowMoFx(this)
-    this.prevX = this.state.athletes.map((a) => a.x)
-
     this.createButtons()
     this.createKeyboard()
     this.createPauseButton()
@@ -155,7 +165,6 @@ export class MatchScene extends Phaser.Scene {
   update(_time: number, deltaMs: number): void {
     const dt = deltaMs / 1000
     if (!this.paused) {
-      this.prevX = this.state.athletes.map((a) => a.x)
       this.stepper.advance(dt)
       if (this.state.phase === 'fim') {
         this.endT += dt
@@ -213,8 +222,16 @@ export class MatchScene extends Phaser.Scene {
   private render(dt: number): void {
     const s = this.state
     let marker: { x: number; y: number } | null = null
+    // Suavização: a pose mostrada persegue a pose alvo (~0,05 s), sem trocas bruscas.
+    const k = 1 - Math.exp(-dt * 22)
     s.athletes.forEach((a, i) => {
-      const pose = this.poseOf(a, i)
+      const target = this.poseOf(a, i, dt)
+      const prev = this.shown[i]
+      const pose = prev ? blendPose(prev, target, k) : target
+      this.shown[i] = pose
+      // Poeira ao frear forte.
+      if (Math.abs(this.prevVx[i]) > 3 && Math.abs(a.vx) < 1 && a.y === 0) sandPuff(this, toScreenX(a.x), toScreenY(0), 5)
+      this.prevVx[i] = a.vx
       this.athleteViews[i].draw(a, pose)
       if (a.id === s.controlled && s.phase !== 'fim') marker = this.athleteViews[i].topOf(a, pose)
     })
@@ -269,10 +286,10 @@ export class MatchScene extends Phaser.Scene {
     getSession().persist((d) => ({ ...d, tipsShown: true }))
   }
 
-  private poseOf(a: Athlete, i: number): Pose {
+  private poseOf(a: Athlete, i: number, dt: number): Pose {
     const s = this.state
-    // Câmera lenta: o atacante fica lá no alto, acompanhando a bola.
-    if (s.slowMo?.athleteId === a.id) return { ...poseFor('cabeca', 0.4), rootY: Math.min(1.4, Math.max(0, s.ball.y - 2.6)) }
+    // Câmera lenta: o atacante sobe alto, acompanhando a bola (cabeça ~1,95 m acima dos pés).
+    if (s.slowMo?.athleteId === a.id) return { ...poseFor('cabeca', 0.4), rootY: Math.min(1.9, Math.max(0, s.ball.y - 1.95)) }
     const d = ACTION_DURATION[a.action]
     const contact = CONTACT_KEY[a.action]
     if (contact !== undefined && a.actionT < d * (1 - contact)) {
@@ -291,7 +308,13 @@ export class MatchScene extends Phaser.Scene {
       const held = Math.min(1, (s.time - b.forteDownAt) / 0.4)
       return poseFor('saque', 0.35 * held)
     }
-    if (Math.abs(a.x - this.prevX[i]) > 0.001) return poseFor('correndo', (s.time * 2.2) % 1)
+    if (Math.abs(a.vx) > 0.2) {
+      // A passada acompanha a velocidade; o corpo inclina para onde está indo.
+      this.runPhase[i] = (this.runPhase[i] + Math.abs(a.vx) * dt * 0.42) % 1
+      const forward = a.team === 0 ? a.vx : -a.vx
+      const run = poseFor('correndo', this.runPhase[i])
+      return { ...run, tronco: run.tronco + Math.max(-0.3, Math.min(0.3, forward * 0.045)) - 0.15 }
+    }
     const base = LOOPING[a.action] ? a.action : 'parado'
     return poseFor(base, (a.actionT % ACTION_DURATION[base]) / ACTION_DURATION[base])
   }
@@ -322,12 +345,32 @@ export class MatchScene extends Phaser.Scene {
   // ---- quadra e rede ----
 
   private drawCourt(): void {
+    // Quadra pintada em perspectiva (como nos prints), com faixa mais forte perto da rede.
+    const [outer, inner] = COURT_COLORS[this.cfg.arena]
     const g = this.add.graphics()
     const y0 = toScreenY(0)
-    const x0 = toScreenX(-BALANCE.halfCourt)
-    const x1 = toScreenX(BALANCE.halfCourt)
-    g.fillStyle(0xe9c46a, 1).fillRect(x0 - 40, y0 - 12, x1 - x0 + 80, 40)
-    g.lineStyle(5, 0x1565c0, 1).strokeRect(x0, y0 - 6, x1 - x0, 24)
+    const top = y0 - 12
+    const bottom = y0 + 28
+    const skew = 22
+    const X = (x: number) => toScreenX(x)
+    const quad = (xa: number, xb: number, color: number, alpha: number) =>
+      g.fillStyle(color, alpha).fillPoints(
+        [
+          new Phaser.Math.Vector2(X(xa) + skew, top),
+          new Phaser.Math.Vector2(X(xb) - skew, top),
+          new Phaser.Math.Vector2(X(xb) + skew * 0.4, bottom),
+          new Phaser.Math.Vector2(X(xa) - skew * 0.4, bottom),
+        ],
+        true,
+      )
+    const h = BALANCE.halfCourt
+    quad(-h, h, outer, 0.92)
+    quad(-3, 3, inner, 0.95)
+    g.lineStyle(2, 0xffffff, 0.95)
+    const line = (x: number) => g.lineBetween(X(x) + (x === -h ? skew : x === h ? -skew : 0), top, X(x) + (x === -h ? -skew * 0.4 : x === h ? skew * 0.4 : 0), bottom)
+    for (const x of [-h, -3, 0, 3, h]) line(x)
+    g.lineBetween(X(-h) + skew, top, X(h) - skew, top)
+    g.lineBetween(X(-h) - skew * 0.4, bottom, X(h) + skew * 0.4, bottom)
   }
 
   private drawNet(): void {

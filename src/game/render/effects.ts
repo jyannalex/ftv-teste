@@ -2,23 +2,28 @@ import Phaser from 'phaser'
 import type { Ball } from '../../core/physics'
 import { toScreenX, toScreenY } from './view'
 
-/** Areia levantando (pulo do atleta ou bola caindo). */
+const SAND_TEXTURE = 'grao-areia'
+
+/** Areia levantando (pulo, freada, bola caindo): grãos com gravidade. */
 export function sandPuff(scene: Phaser.Scene, x: number, y: number, amount = 8): void {
-  for (let i = 0; i < amount; i++) {
-    const p = scene.add.circle(x, y, Phaser.Math.Between(2, 5), 0xe6c27a, 0.9)
-    const ang = Phaser.Math.FloatBetween(Math.PI * 1.05, Math.PI * 1.95)
-    const dist = Phaser.Math.Between(14, 40)
-    scene.tweens.add({
-      targets: p,
-      x: x + Math.cos(ang) * dist,
-      y: y + Math.sin(ang) * dist * 0.7,
-      alpha: 0,
-      scale: 0.4,
-      duration: Phaser.Math.Between(300, 550),
-      ease: 'Quad.easeOut',
-      onComplete: () => p.destroy(),
-    })
+  if (!scene.textures.exists(SAND_TEXTURE)) {
+    const g = scene.make.graphics({ x: 0, y: 0 }, false)
+    g.fillStyle(0xffffff, 1).fillCircle(4, 4, 4)
+    g.generateTexture(SAND_TEXTURE, 8, 8)
+    g.destroy()
   }
+  const e = scene.add.particles(x, y, SAND_TEXTURE, {
+    speed: { min: 50, max: 150 },
+    angle: { min: 200, max: 340 },
+    gravityY: 520,
+    lifespan: { min: 350, max: 600 },
+    scale: { start: 0.9, end: 0.25 },
+    alpha: { start: 0.95, end: 0 },
+    tint: [0xe6c27a, 0xd9b36a, 0xf0d9a0, 0xc9a35a],
+    emitting: false,
+  })
+  e.explode(amount)
+  scene.time.delayedCall(700, () => e.destroy())
 }
 
 /** Rastro da bola em ataques fortes (ciano no Sharkataque). */
