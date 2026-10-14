@@ -66,3 +66,14 @@ describe('trava de movimento depois do saque', () => {
     expect(server.x).toBeGreaterThan(x0 + 0.1)
   })
 })
+
+describe('trava de movimento: outra direção libera na hora', () => {
+  it('depois do saque segurando ▶, apertar ▼ já anda', () => {
+    const s = createMatch(matchConfig({ humanTeam: 0 }))
+    const server = s.athletes[s.score.server]
+    simulate(s, (_st, i) => teamInputs(0, { forte: i < 10, move: 1 }), 30)
+    const z0 = server.z
+    simulate(s, () => teamInputs(0, { move: 1, moveZ: 1 }), 10)
+    expect(server.z).toBeGreaterThan(z0 + 0.1)
+  })
+})

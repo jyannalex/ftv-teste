@@ -184,7 +184,7 @@ export function updatePositions(s: MatchState, inputs: [TeamInput, TeamInput], d
       return { x: sign * bp.defense, z: (near ? 1 : -1) * bp.laneZ }
     }
     const i = inputs[team]
-    const locked = s.buttons[team].moveLocked
+    const locked = s.buttons[team].moveLock !== null
     const [vx, vz] = slow || locked ? [0, 0] : inputVelocity(i.move, i.moveZ, BALANCE.move.manual)
 
     for (const ath of mates) {

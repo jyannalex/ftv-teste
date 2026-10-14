@@ -1,9 +1,58 @@
 import Phaser from 'phaser'
-import { GROUND_Y } from '../view'
+import { depthOf, project } from '../view'
 
 export type ArenaRuntime = { update(timeSec: number): void }
 
-export const HORIZON = GROUND_Y - 110
+/** Linha do horizonte (céu/mar) e onde começa a areia, na tela. */
+export const HORIZON = 150
+export const SAND_Y = 200
+
+const CROWD_SHIRTS = [0xe53935, 0xfdd835, 0x1e88e5, 0xffffff, 0x43a047, 0xff7043, 0x8e24aa, 0x26c6da]
+const CROWD_SKINS = [0xf1c27d, 0x8d5524, 0xc68642, 0xe0ac69, 0xffdbac]
+const CROWD_HAIR = [0x2b1b0e, 0x111111, 0xf5d76e, 0x6d4c41, 0xb71c1c]
+
+/**
+ * Torcida em pé na areia, atrás e dos lados da quadra: bonecos cabeçudos que pulam e acenam.
+ * Cada um fica numa posição do mundo (x, z) e é desenhado na ordem da profundidade.
+ */
+export function crowd(scene: Phaser.Scene, seed: string, density = 1): ArenaRuntime {
+  const rnd = new Phaser.Math.RandomDataGenerator([seed])
+  type Fan = { x: number; z: number; shirt: number; skin: number; hair: number; ph: number; wave: boolean }
+  const fans: Fan[] = []
+  const add = (x: number, z: number) =>
+    fans.push({ x, z, shirt: rnd.pick(CROWD_SHIRTS), skin: rnd.pick(CROWD_SKINS), hair: rnd.pick(CROWD_HAIR), ph: rnd.realInRange(0, 6.3), wave: rnd.frac() < 0.3 })
+  for (const z of [-6.6, -7.6])
+    for (let x = -12; x <= 12; x += 1.25 / density) if (rnd.frac() < 0.85) add(x + rnd.realInRange(-0.3, 0.3), z + rnd.realInRange(-0.2, 0.2))
+  for (const side of [-1, 1])
+    for (let z = -4.5; z <= 3; z += 1.5 / density) if (rnd.frac() < 0.7) add(side * rnd.realInRange(11.6, 13), z)
+  fans.sort((a, b) => a.z - b.z)
+  // Um gráfico por fileira de profundidade: atrás (z < -5) e dos lados.
+  const back = scene.add.graphics().setDepth(depthOf(-7))
+  const sides = scene.add.graphics().setDepth(depthOf(4))
+  return {
+    update(t: number) {
+      back.clear()
+      sides.clear()
+      for (const f of fans) {
+        const g = f.z < -5 ? back : sides
+        const p = project(f.x, 0, f.z)
+        const s = p.k / 50
+        const hop = Math.max(0, Math.sin(t * 4 + f.ph)) * 6 * s
+        const y = p.y - hop
+        g.fillStyle(0x000000, 0.18).fillEllipse(p.x, p.y, 22 * s, 6 * s)
+        g.fillStyle(0x263238, 1).fillRect(p.x - 6 * s, y - 16 * s, 5 * s, 16 * s).fillRect(p.x + 1 * s, y - 16 * s, 5 * s, 16 * s)
+        g.fillStyle(f.shirt, 1).fillRoundedRect(p.x - 9 * s, y - 38 * s, 18 * s, 24 * s, 5 * s)
+        // Braço acenando ou parado.
+        const arm = f.wave ? Math.sin(t * 8 + f.ph) * 0.5 - 2.4 : 0.2
+        g.lineStyle(4 * s, f.skin, 1).lineBetween(p.x + 8 * s, y - 34 * s, p.x + 8 * s + Math.sin(arm) * 14 * s, y - 34 * s + Math.cos(arm) * 14 * s)
+        g.fillStyle(0x1a1a24, 1).fillCircle(p.x, y - 50 * s, 13 * s)
+        g.fillStyle(f.skin, 1).fillCircle(p.x, y - 50 * s, 11.5 * s)
+        g.fillStyle(f.hair, 1).slice(p.x, y - 50 * s, 12 * s, Math.PI, 0, false).fillPath()
+        g.fillStyle(0x1a1a24, 1).fillCircle(p.x - 4 * s, y - 49 * s, 1.5 * s).fillCircle(p.x + 4 * s, y - 49 * s, 1.5 * s)
+      }
+    },
+  }
+}
 
 export function sky(g: Phaser.GameObjects.Graphics, top: number, bottom: number, toY = HORIZON): void {
   g.fillGradientStyle(top, top, bottom, bottom, 1).fillRect(0, 0, 1280, toY)

@@ -1,11 +1,11 @@
 import Phaser from 'phaser'
 import type { Ball } from '../../core/physics'
-import { toScreenX, toScreenY } from './view'
+import { depthOf, groundSquash, LAYER, project } from './view'
 
 const SAND_TEXTURE = 'grao-areia'
 
 /** Areia levantando (pulo, freada, bola caindo): grãos com gravidade. */
-export function sandPuff(scene: Phaser.Scene, x: number, y: number, amount = 8): void {
+export function sandPuff(scene: Phaser.Scene, x: number, y: number, amount = 8, depth: number = LAYER.fx): void {
   if (!scene.textures.exists(SAND_TEXTURE)) {
     const g = scene.make.graphics({ x: 0, y: 0 }, false)
     g.fillStyle(0xffffff, 1).fillCircle(4, 4, 4)
@@ -22,6 +22,7 @@ export function sandPuff(scene: Phaser.Scene, x: number, y: number, amount = 8):
     tint: [0xe6c27a, 0xd9b36a, 0xf0d9a0, 0xc9a35a],
     emitting: false,
   })
+  e.setDepth(depth)
   e.explode(amount)
   scene.time.delayedCall(700, () => e.destroy())
 }
@@ -34,7 +35,7 @@ export class BallTrail {
   private active = false
 
   constructor(scene: Phaser.Scene) {
-    this.g = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD)
+    this.g = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD).setDepth(LAYER.fx)
   }
 
   start(color: number): void {
@@ -48,7 +49,7 @@ export class BallTrail {
   }
 
   update(b: Ball): void {
-    if (this.active) this.points.push({ x: toScreenX(b.x), y: toScreenY(b.y) })
+    if (this.active) this.points.push(project(b.x, b.y, b.z))
     else this.points.shift()
     if (this.points.length > 14) this.points.shift()
     const g = this.g
@@ -63,10 +64,10 @@ export class BallTrail {
 
 /** Tubarão saindo do pé no Sharkataque: barbatana, boca e flash. */
 export function sharkEffect(scene: Phaser.Scene, x: number, y: number, dir: 1 | -1): void {
-  const flash = scene.add.rectangle(640, 360, 1280, 720, 0xffffff, 0.7).setBlendMode(Phaser.BlendModes.ADD)
+  const flash = scene.add.rectangle(640, 360, 1280, 720, 0xffffff, 0.7).setBlendMode(Phaser.BlendModes.ADD).setDepth(LAYER.fx)
   scene.tweens.add({ targets: flash, alpha: 0, duration: 260, onComplete: () => flash.destroy() })
 
-  const shark = scene.add.container(x, y)
+  const shark = scene.add.container(x, y).setDepth(LAYER.fx)
   const g = scene.add.graphics()
   // Corpo e boca aberta, desenhados virados para +x.
   g.fillStyle(0x546e7a, 1).fillEllipse(-40, 0, 120, 46)
@@ -84,28 +85,53 @@ export function sharkEffect(scene: Phaser.Scene, x: number, y: number, dir: 1 | 
   scene.cameras.main.shake(180, 0.008)
 }
 
-/** Marcas no chão: sombra de onde a bola vai cair e anel da mira. Desenhadas sob os atletas. */
+export type GroundPoint = { x: number; z: number }
+
+/**
+ * Marcas no chão, sob os atletas: círculo de alcance do controlado, onde a bola vai cair e a mira.
+ */
 export class GroundMarks {
   private g: Phaser.GameObjects.Graphics
   private t = 0
 
   constructor(scene: Phaser.Scene) {
-    this.g = scene.add.graphics()
+    this.g = scene.add.graphics().setDepth(LAYER.marks)
   }
 
-  update(landingX: number | null, aimX: number | null, dt: number): void {
+  /** Círculo de raio r (m) no chão, achatado pela perspectiva. */
+  private ring(p: GroundPoint, r: number): { x: number; y: number; w: number; h: number } {
+    const c = project(p.x, 0, p.z)
+    return { x: c.x, y: c.y, w: 2 * r * c.k, h: 2 * r * c.k * groundSquash(p.z) }
+  }
+
+  update(reach: (GroundPoint & { r: number; hot: boolean }) | null, landing: GroundPoint | null, aim: GroundPoint | null, dt: number): void {
     this.t += dt
     const g = this.g
     g.clear()
-    const y = toScreenY(0) + 2
-    if (landingX !== null) g.fillStyle(0x000000, 0.3).fillEllipse(toScreenX(landingX), y, 30, 9)
-    if (aimX !== null) {
+    if (reach) {
+      // Alcance do atleta controlado: fica vermelho quando a bola vai cair dentro.
+      const e = this.ring(reach, reach.r)
+      const color = reach.hot ? 0xff5252 : 0xffffff
+      g.fillStyle(color, reach.hot ? 0.22 : 0.1).fillEllipse(e.x, e.y, e.w, e.h)
+      g.lineStyle(3, color, 0.85).strokeEllipse(e.x, e.y, e.w, e.h)
+    }
+    if (landing) {
+      const e = this.ring(landing, 0.35)
+      const pulse = 1 + Math.sin(this.t * 12) * 0.12
+      g.fillStyle(0xff5252, 0.35).fillEllipse(e.x, e.y, e.w * pulse, e.h * pulse)
+      g.lineStyle(2, 0xffffff, 0.9).strokeEllipse(e.x, e.y, e.w * pulse, e.h * pulse)
+    }
+    if (aim) {
       const pulse = 1 + Math.sin(this.t * 10) * 0.08
-      g.lineStyle(3, 0xffe14d, 1).strokeEllipse(toScreenX(aimX), y, 44 * pulse, 14 * pulse)
-      g.lineStyle(2, 0xffffff, 0.9).strokeEllipse(toScreenX(aimX), y, 26 * pulse, 8 * pulse)
+      const e = this.ring(aim, 0.55)
+      g.lineStyle(3, 0xffe14d, 1).strokeEllipse(e.x, e.y, e.w * pulse, e.h * pulse)
+      g.lineStyle(2, 0xffffff, 0.9).strokeEllipse(e.x, e.y, e.w * 0.55 * pulse, e.h * 0.55 * pulse)
     }
   }
 }
+
+/** Ordem de desenho de um efeito no chão em z. */
+export const fxDepth = (z: number): number => depthOf(z) + 0.6
 
 /** Câmera lenta do ataque: bordas escurecidas, bolha no atacante, anel na bola e o aviso de escolha. */
 export class SlowMoFx {
@@ -115,17 +141,17 @@ export class SlowMoFx {
   private t = 0
 
   constructor(scene: Phaser.Scene) {
-    this.veil = scene.add.graphics().setDepth(5)
+    this.veil = scene.add.graphics().setDepth(LAYER.fx)
     for (let i = 0; i < 6; i++) {
       const inset = i * 14
       this.veil.lineStyle(28, 0x000000, 0.08).strokeRect(inset, inset, 1280 - 2 * inset, 720 - 2 * inset)
     }
-    this.fx = scene.add.graphics().setDepth(5).setBlendMode(Phaser.BlendModes.ADD)
+    this.fx = scene.add.graphics().setDepth(LAYER.fx).setBlendMode(Phaser.BlendModes.ADD)
     this.text = scene.add
-      .text(640, 240, 'ESCOLHA!   FORTE · PINGO · 🦈', { fontFamily: 'Arial Black, Arial', fontSize: '30px', color: '#ffffff' })
+      .text(640, 128, 'ESCOLHA!   FORTE · PINGO · 🦈', { fontFamily: 'Arial Black, Arial', fontSize: '30px', color: '#ffffff' })
       .setOrigin(0.5)
       .setStroke('#0b1d33', 8)
-      .setDepth(5)
+      .setDepth(LAYER.fx)
     this.hide()
   }
 
@@ -151,6 +177,6 @@ export class SlowMoFx {
 
 /** Brilho curto no contato de um ataque forte. */
 export function hitFlash(scene: Phaser.Scene, x: number, y: number): void {
-  const c = scene.add.circle(x, y, 16, 0xffffff, 0.9).setBlendMode(Phaser.BlendModes.ADD)
+  const c = scene.add.circle(x, y, 16, 0xffffff, 0.9).setBlendMode(Phaser.BlendModes.ADD).setDepth(LAYER.fx)
   scene.tweens.add({ targets: c, scale: 3, alpha: 0, duration: 220, ease: 'Quad.easeOut', onComplete: () => c.destroy() })
 }

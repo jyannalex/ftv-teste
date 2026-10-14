@@ -87,8 +87,8 @@ export type ButtonTrack = {
   fortePressAt: number | null
   /** Quando o botão esquerdo foi apertado e segue segurado; null se o aperto não vale (veio de antes). */
   forteDownAt: number | null
-  /** Direção segurada desde o saque/ataque não move o atleta até soltar. */
-  moveLocked: boolean
+  /** Direção segurada no saque/ataque (a mira): não move o atleta até o jogador mudar de direção. */
+  moveLock: { move: number; moveZ: number } | null
 }
 
 export type ContactPlan = {
@@ -143,7 +143,7 @@ export type MatchEvent =
   | { type: 'ponto'; winner: Side; reason: PointReason }
   | { type: 'fimDeSet'; winner: Side }
 
-const freshButtons = (): ButtonTrack => ({ forte: false, pingo: false, shark: false, troca: false, fortePressAt: null, forteDownAt: null, moveLocked: false })
+const freshButtons = (): ButtonTrack => ({ forte: false, pingo: false, shark: false, troca: false, fortePressAt: null, forteDownAt: null, moveLock: null })
 
 export function createMatch(config: MatchConfig): MatchState {
   const athletes: Athlete[] = [0, 1, 2, 3].map((id) => ({
@@ -244,12 +244,12 @@ function trackButtons(s: MatchState, inputs: [TeamInput, TeamInput]): [Edges, Ed
     b.pingo = i.pingo
     b.shark = i.shark
     b.troca = i.troca
-    if (b.moveLocked && i.move === 0 && i.moveZ === 0) b.moveLocked = false
+    if (b.moveLock && (i.move !== b.moveLock.move || i.moveZ !== b.moveLock.moveZ)) b.moveLock = null
     return e
   }) as [Edges, Edges]
 }
 
-function serve(s: MatchState, target: AimTarget, events: MatchEvent[]): void {
+function serve(s: MatchState, target: AimTarget, events: MatchEvent[], held: TeamInput = IDLE): void {
   const team = s.score.servingTeam
   const sign = sideSign(team)
   const to = { x: -sign * BALANCE.serveDepth[target.aim], y: BALANCE.ballRadius, z: target.lane * BALANCE.laneZ }
@@ -259,7 +259,7 @@ function serve(s: MatchState, target: AimTarget, events: MatchEvent[]): void {
   // O saque conta como 3 toques: bola que não passa é falta de quem sacou.
   s.touch = { team, count: 3, lastAthlete: server }
   setAction(s.athletes[server], 'saque')
-  s.buttons[team].moveLocked = true
+  s.buttons[team].moveLock = { move: held.move, moveZ: held.moveZ }
   events.push({ type: 'saque', athleteId: server })
   setPhase(s, 'rally')
   replan(s)
@@ -298,7 +298,7 @@ export function step(s: MatchState, inputs: [TeamInput, TeamInput], dt = DT): Ma
       const team = s.score.servingTeam
       const b = s.buttons[team]
       if (s.config.humanTeam !== team) switchControlled(s, edges)
-      if (edges[team].forteUp && b.forteDownAt !== null) serve(s, aimFromInput(team, inputs[team]), events)
+      if (edges[team].forteUp && b.forteDownAt !== null) serve(s, aimFromInput(team, inputs[team]), events, inputs[team])
       else if (s.phaseT >= BALANCE.autoServeSec) serve(s, { aim: 'meio', lane: 0 }, events)
       break
     }

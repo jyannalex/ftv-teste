@@ -12,7 +12,7 @@ const BALL = (g: Phaser.GameObjects.Graphics, x: number, y: number) => {
 const CARDS: Card[] = [
   {
     title: '1. Corra até a sombra',
-    lines: ['◀ ▶ (A/D) movem · W (⇄) troca o atleta.', 'No lugar certo ele recebe e levanta sozinho.', 'Ataque vindo? DEFENDER (J) na hora certa!'],
+    lines: ['Joystick ou WASD anda · Q (⇄) troca o atleta.', 'Círculo na marca da bola: recebe sozinho.', 'Ataque vindo? DEFENDER (J) na hora certa!'],
     draw: (g, x, y) => {
       g.fillStyle(0x2e7d32, 1).fillCircle(x - 40, y, 26)
       g.fillStyle(0xc62828, 1).fillCircle(x + 40, y, 26)
@@ -20,14 +20,14 @@ const CARDS: Card[] = [
   },
   {
     title: '2. Três toques, sem mão',
-    lines: ['1º chapa ou peito → 2º levantada →', '3º ataque. O jogo troca o atleta sozinho.', 'Saque: segure FORTE e solte (◀ ▶ mira).'],
+    lines: ['1º chapa ou peito → 2º levantada →', '3º ataque. O jogo troca o atleta sozinho.', 'Saque: segure FORTE e solte (direção mira).'],
     draw: (g, x, y) => {
       for (let i = 0; i < 3; i++) BALL(g, x - 60 + i * 60, y - Math.sin((i / 2) * Math.PI) * 18)
     },
   },
   {
     title: '3. Ataque em câmera lenta',
-    lines: ['No 3º toque você pula e o tempo desacelera:', 'FORTE (J) bate forte · PINGO (K) cai na rede', '◀ ▶ mira curto ou fundo.'],
+    lines: ['No 3º toque você pula e o tempo desacelera:', 'FORTE (J) bate forte · PINGO (K) cai na rede', '◀ ▶ curto/fundo · ▲ ▼ o lado da quadra.'],
     draw: (g, x, y) => {
       g.fillStyle(0xffffff, 1).fillRect(x - 3, y - 26, 6, 40)
       g.lineStyle(3, 0xffe14d, 1).lineBetween(x - 50, y - 20, x + 70, y + 10)

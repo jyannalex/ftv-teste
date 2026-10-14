@@ -76,7 +76,7 @@ function slowMoAttack(s: MatchState, plan: ContactPlan, inputs: [TeamInput, Team
   if (choice) executeTouch(s, plan, choice, aim, events, { x: s.ball.x, y: s.ball.y, z: s.ball.z })
   else if (s.time >= plan.tIdeal) executeTouch(s, plan, 'fraco', aim, events)
   // A direção da mira continua segurada depois do ataque: não faz o atleta correr.
-  if (!s.slowMo) s.buttons[team].moveLocked = true
+  if (!s.slowMo) s.buttons[team].moveLock = { move: inputs[team].move, moveZ: inputs[team].moveZ }
   return true
 }
 

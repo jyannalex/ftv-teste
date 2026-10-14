@@ -1,9 +1,9 @@
 import Phaser from 'phaser'
 import type { MatchState } from '../../core/match'
-import { toScreenX } from './view'
+import { LAYER, project } from './view'
 
 const FONT = 'Arial Black, Arial, sans-serif'
-const METER_W = 260
+const METER_W = 200
 /** Barra do Sharkataque do jogador, embaixo no centro. */
 const BIG_W = 420
 const BIG_Y = 692
@@ -23,26 +23,30 @@ export class Hud {
     private scene: Phaser.Scene,
     teamNames: [string, string],
   ) {
-    const panel = scene.add.graphics()
-    panel.fillStyle(0x0b1d33, 0.85).fillRoundedRect(340, 8, 600, 78, 14)
+    const panel = scene.add.graphics().setDepth(LAYER.hud)
+    panel.fillStyle(0x0b1d33, 0.8).fillRoundedRect(360, 6, 560, 60, 14)
     teamNames.forEach((n, i) =>
       scene.add
-        .text(i === 0 ? 360 : 920, 18, n, { fontFamily: FONT, fontSize: '18px', color: '#ffffff' })
-        .setOrigin(i === 0 ? 0 : 1, 0),
+        .text(i === 0 ? 378 : 902, 12, n, { fontFamily: FONT, fontSize: '16px', color: '#ffffff' })
+        .setOrigin(i === 0 ? 0 : 1, 0)
+        .setDepth(LAYER.hud),
     )
     this.scoreText = scene.add
-      .text(640, 14, '0  x  0', { fontFamily: FONT, fontSize: '34px', color: '#ffe14d' })
+      .text(640, 10, '0  x  0', { fontFamily: FONT, fontSize: '32px', color: '#ffe14d' })
       .setOrigin(0.5, 0)
-    this.meters = scene.add.graphics()
+      .setDepth(LAYER.hud)
+    this.meters = scene.add.graphics().setDepth(LAYER.hud)
     this.meterLabel = scene.add
       .text(640, BIG_Y + 9, 'SHARKATAQUE', { fontFamily: FONT, fontSize: '15px', color: '#ffffff' })
       .setOrigin(0.5)
       .setStroke('#0b1d33', 4)
+      .setDepth(LAYER.hud)
     this.touchText = scene.add
-      .text(640, 98, '', { fontFamily: FONT, fontSize: '18px', color: '#ffffff' })
+      .text(640, 74, '', { fontFamily: FONT, fontSize: '18px', color: '#ffffff' })
       .setOrigin(0.5, 0)
       .setStroke('#0b1d33', 5)
-    this.marker = scene.add.triangle(0, 0, 0, 0, 22, 0, 11, 16, 0xffd600).setStrokeStyle(2, 0x000000)
+      .setDepth(LAYER.hud)
+    this.marker = scene.add.triangle(0, 0, 0, 0, 22, 0, 11, 16, 0xffd600).setStrokeStyle(2, 0x000000).setDepth(LAYER.fx)
   }
 
   update(s: MatchState, markerPos: { x: number; y: number } | null, dt: number): void {
@@ -55,8 +59,8 @@ export class Hud {
     const blink = Math.floor(this.t * 6) % 2 ? 0x00e5ff : 0xffffff
     // Adversário: barra pequena no placar.
     const v1 = s.meter[1] / 100
-    g.fillStyle(0x23384f, 1).fillRoundedRect(920 - METER_W, 60, METER_W, 12, 5)
-    if (METER_W * v1 > 2) g.fillStyle(v1 >= 1 ? blink : 0xef6c00, 1).fillRoundedRect(920 - METER_W * v1, 60, METER_W * v1, 12, 5)
+    g.fillStyle(0x23384f, 1).fillRoundedRect(902 - METER_W, 48, METER_W, 10, 4)
+    if (METER_W * v1 > 2) g.fillStyle(v1 >= 1 ? blink : 0xef6c00, 1).fillRoundedRect(902 - METER_W * v1, 48, METER_W * v1, 10, 4)
     // Jogador: barra grande embaixo, como a "Finish Spike".
     const v0 = s.meter[0] / 100
     const x0 = 640 - BIG_W / 2
@@ -67,7 +71,7 @@ export class Hud {
 
     const plan = s.plan
     if (s.phase === 'rally' && plan) {
-      this.touchText.setText(`Toque ${plan.touchIndex}/3`).setX(toScreenX(plan.team === 0 ? -4.5 : 4.5)).setVisible(true)
+      this.touchText.setText(`Toque ${plan.touchIndex}/3`).setX(project(plan.team === 0 ? -4.5 : 4.5, 0, 0).x).setVisible(true)
     } else this.touchText.setVisible(false)
 
     if (markerPos) this.marker.setPosition(markerPos.x, markerPos.y + Math.sin(this.t * 8) * 3).setVisible(true)
@@ -80,6 +84,7 @@ export class Hud {
       .text(x, y, text, { fontFamily: FONT, fontSize: '26px', color })
       .setOrigin(0.5)
       .setStroke('#0b1d33', 6)
+      .setDepth(LAYER.hud)
     this.scene.tweens.add({ targets: t, y: y - 60, alpha: 0, duration: 900, ease: 'Cubic.easeOut', onComplete: () => t.destroy() })
   }
 
@@ -94,6 +99,7 @@ export class Hud {
       .setOrigin(0.5)
       .setStroke('#0b1d33', 10)
       .setScale(0.4)
+      .setDepth(LAYER.hud)
       .setAlpha(delay > 0 ? 0 : 1)
     this.scene.tweens.add({ targets: t, scale: 1, alpha: 1, delay, duration: 250, ease: 'Back.easeOut' })
     this.scene.tweens.add({ targets: t, alpha: 0, delay: delay + 650, duration: 300, onComplete: () => t.destroy() })
