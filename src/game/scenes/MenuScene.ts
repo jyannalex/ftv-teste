@@ -26,5 +26,14 @@ export class MenuScene extends Phaser.Scene {
     const titles = DIFFICULTIES.map((d) => `${d.name} ${save.titles[d.id]}`).join('  ·  ')
     this.add.text(640, 700, `🏆 Títulos: ${titles}`, { fontFamily: FONT, fontSize: '18px', color: '#ffffff' }).setOrigin(0.5, 1).setStroke('#0b1d33', 5)
     storageWarning(this)
+    // Celular: tela cheia no primeiro toque.
+    this.input.once('pointerdown', () => {
+      if (!this.sys.game.device.input.touch || this.scale.isFullscreen) return
+      try {
+        this.scale.startFullscreen()
+      } catch {
+        // Navegador sem tela cheia.
+      }
+    })
   }
 }

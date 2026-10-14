@@ -2,15 +2,25 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#1e88e5" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="favicon.ico" sizes="48x48" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="apple-touch-icon-180x180.png" />
     <title>FTV - Teste</title>
     <style>
       html, body { margin: 0; padding: 0; height: 100%; background: #1b2a3a; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
       #game { width: 100%; height: 100%; }
+      #rotate { display: none; position: fixed; inset: 0; z-index: 10; background: #0b1d33; color: #fff; font: 900 26px 'Arial Black', Arial, sans-serif; text-align: center; align-items: center; justify-content: center; flex-direction: column; gap: 18px; }
+      #rotate span { font-size: 64px; animation: girar 1.6s ease-in-out infinite; }
+      @keyframes girar { 0%, 30% { transform: rotate(0deg); } 70%, 100% { transform: rotate(90deg); } }
+      @media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="rotate"><span>📱</span>Gire o aparelho para jogar</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

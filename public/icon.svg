@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1e88e5"/>
+  <ellipse cx="256" cy="520" rx="330" ry="120" fill="#f4d58d"/>
+  <!-- Silhueta da bicicleta: corpo invertido, perna de chute para cima. -->
+  <g fill="#ffffff" stroke="#ffffff" stroke-linecap="round">
+    <circle cx="300" cy="350" r="34" stroke="none"/>
+    <path d="M300 330 L235 220" stroke-width="44"/>
+    <path d="M235 220 L195 105" stroke-width="30"/>
+    <path d="M300 330 L380 300" stroke-width="30"/>
+    <path d="M300 345 L215 370" stroke-width="22"/>
+    <path d="M300 345 L345 440" stroke-width="22"/>
+    <path d="M300 330 L330 230 L385 205" stroke-width="30" fill="none"/>
+  </g>
+  <circle cx="170" cy="80" r="44" fill="#ffd600" stroke="#111" stroke-width="6"/>
+  <path d="M170 36 A44 44 0 0 1 214 80 L170 80 Z M170 124 A44 44 0 0 1 126 80 L170 80 Z" fill="#111"/>
+</svg>

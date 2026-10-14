@@ -7,6 +7,7 @@ import type { Side } from '../../core/rules'
 import { BALANCE } from '../../data/balance'
 import type { ArenaId } from '../../data/arenas'
 import { AI_TEAMS, teamById } from '../../data/teams'
+import { type Audio, gameAudio } from '../audio/sound'
 import { Controls } from '../input/controls'
 import { getSession } from '../session'
 import { createFixedStepper, type FixedStepper } from '../loop/fixedStep'
@@ -70,6 +71,7 @@ export class MatchScene extends Phaser.Scene {
   private arena!: ArenaRuntime
   private trail!: BallTrail
   private tipText?: Phaser.GameObjects.Text
+  private audio!: Audio
 
   constructor() {
     super('Match')
@@ -96,6 +98,7 @@ export class MatchScene extends Phaser.Scene {
 
     this.arena = drawArena(this, this.cfg.arena)
     this.drawCourt()
+    this.audio = gameAudio(this.game)
     const looks = [
       { shirt: this.cfg.player.shirt, shorts: 0x263238 },
       { shirt: this.cfg.player.shirt, shorts: 0x263238 },
@@ -124,11 +127,15 @@ export class MatchScene extends Phaser.Scene {
     this.stepper = createFixedStepper(() => this.tick())
 
     const onBlur = () => this.setPaused(true)
+    const portrait = window.matchMedia('(orientation: portrait) and (pointer: coarse)')
+    const onRotate = () => portrait.matches && this.setPaused(true)
+    portrait.addEventListener('change', onRotate)
     this.game.events.on(Phaser.Core.Events.BLUR, onBlur)
     this.game.events.on(Phaser.Core.Events.HIDDEN, onBlur)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off(Phaser.Core.Events.BLUR, onBlur)
       this.game.events.off(Phaser.Core.Events.HIDDEN, onBlur)
+      portrait.removeEventListener('change', onRotate)
     })
     if (import.meta.env.DEV) (window as unknown as { __match: MatchState }).__match = this.state
   }
@@ -159,6 +166,7 @@ export class MatchScene extends Phaser.Scene {
       case 'toque': {
         const a = s.athletes[e.athleteId]
         this.touchEffects(e.action, a)
+        this.audio.playSfx('toque')
         if (a.team !== s.config.humanTeam) break
         const [text, color] = GRADE_TEXT[e.grade]
         this.hud.float(text, toScreenX(a.x), toScreenY(2.6), color)
@@ -172,12 +180,15 @@ export class MatchScene extends Phaser.Scene {
       case 'sharkataque': {
         const a = s.athletes[e.athleteId]
         sharkEffect(this, toScreenX(s.ball.x), toScreenY(s.ball.y), a.team === 0 ? 1 : -1)
+        this.audio.playSfx('sharkataque')
         this.slowMotion()
         this.hud.banner('SHARKATAQUE!', '#00e5ff', 64)
         break
       }
       case 'ponto': {
         this.endTips()
+        this.audio.playSfx('apito')
+        this.audio.playSfx('torcida')
         this.trail.stop()
         if (s.ball.y < 0.5) sandPuff(this, toScreenX(s.ball.x), toScreenY(0), 14)
         const text = e.reason === 'fora' ? 'FORA!' : e.reason === 'falta' ? 'FALTA!' : 'PONTO!'
@@ -185,6 +196,7 @@ export class MatchScene extends Phaser.Scene {
         break
       }
       case 'fimDeSet':
+        this.audio.playSfx('apito')
         this.hud.banner(e.winner === 0 ? 'VITÓRIA!' : 'DERROTA', e.winner === 0 ? '#ffe14d' : '#ff8a80', 72)
         break
     }
@@ -256,7 +268,10 @@ export class MatchScene extends Phaser.Scene {
 
   private touchEffects(action: TouchAction, a: Athlete): void {
     const s = this.state
-    if (action === 'forte' || action === 'pingo' || action === 'sharkataque') sandPuff(this, toScreenX(a.x), toScreenY(0))
+    if (action === 'forte' || action === 'pingo' || action === 'sharkataque') {
+      sandPuff(this, toScreenX(a.x), toScreenY(0))
+      this.audio.playSfx('areia')
+    }
     if (action === 'sharkataque') this.trail.start(0x00e5ff)
     else if (action === 'forte' && (s.lastAttack?.force ?? 0) >= 0.5) this.trail.start(0xffffff)
     else this.trail.stop()
@@ -296,10 +311,11 @@ export class MatchScene extends Phaser.Scene {
 
   private createButtons(): void {
     this.input.addPointer(2)
+    const touch = this.sys.game.device.input.touch
     const make = (x: number, label: string, key: string, color: number) => {
       const c = this.add.circle(x, 652, 58, color, 0.55).setStrokeStyle(4, 0xffffff, 0.8).setInteractive()
       this.add.text(x, 642, label, { fontFamily: FONT, fontSize: '16px', color: '#ffffff' }).setOrigin(0.5)
-      this.add.text(x, 668, key, { fontFamily: FONT, fontSize: '14px', color: '#ffffffaa' }).setOrigin(0.5)
+      if (!touch) this.add.text(x, 668, key, { fontFamily: FONT, fontSize: '14px', color: '#ffffffaa' }).setOrigin(0.5)
       return c
     }
     const rec = make(90, 'RECEPÇÃO', '[J]', 0x2e7d32)
