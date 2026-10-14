@@ -63,6 +63,7 @@ export function planContact(s: MatchState): ContactPlan | null {
     incoming,
     resolving: false,
     choice: null,
+    jumpChecked: false,
   }
 }
 

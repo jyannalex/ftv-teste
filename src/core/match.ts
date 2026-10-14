@@ -98,6 +98,8 @@ export type ContactPlan = {
   resolving: boolean
   /** Escolha de ataque do 3º toque (a última borda de botão). */
   choice: 'forte' | 'pingo' | 'sharkataque' | null
+  /** Já conferiu se o jogador pula para a câmera lenta. */
+  jumpChecked: boolean
 }
 
 export type MatchPhase = 'saque' | 'rally' | 'ponto' | 'fim'

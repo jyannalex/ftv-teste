@@ -43,6 +43,36 @@ export function executeTouch(
   replan(s)
 }
 
+/** Duração da câmera lenta em tempo de jogo. */
+export const slowMoLead = (s: MatchState): number => s.config.slowMoSec * BALANCE.slowMo.scale
+
+/**
+ * Ataque do jogador: pula em tIdeal − lead (se perto), entra em câmera lenta e executa a primeira
+ * escolha nova. Devolve true quando cuidou do passo.
+ */
+function slowMoAttack(s: MatchState, plan: ContactPlan, inputs: [TeamInput, TeamInput], edges: [Edges, Edges], events: MatchEvent[]): boolean {
+  const team = plan.team
+  if (plan.touchIndex !== 3 || team !== s.config.humanTeam || plan.athleteId !== s.controlled) return false
+  const athlete = s.athletes[plan.athleteId]
+  if (!s.slowMo) {
+    if (plan.jumpChecked || s.time < plan.tIdeal - slowMoLead(s)) return false
+    plan.jumpChecked = true
+    if (Math.abs(athlete.x - plan.x) > BALANCE.slowMo.jumpMaxDist) return false
+    athlete.x = plan.x
+    setAction(athlete, 'cabeca')
+    s.slowMo = { athleteId: plan.athleteId, aim: aimFromMove(team, inputs[team].move) }
+    return true
+  }
+  const aim = aimFromMove(team, inputs[team].move)
+  s.slowMo.aim = aim
+  const e = edges[team]
+  const choice: TouchAction | null =
+    e.sharkDown && isMeterFull(s.meter[team]) ? 'sharkataque' : e.forteDown ? 'forte' : e.pingoDown ? 'pingo' : null
+  if (choice) executeTouch(s, plan, choice, 'normal', aim, events, { x: s.ball.x, y: s.ball.y })
+  else if (s.time >= plan.tIdeal) executeTouch(s, plan, 'fraco', 'normal', aim, events)
+  return true
+}
+
 /** Escolha de ataque registrada pelas bordas dos botões (a última vale). */
 function recordChoice(s: MatchState, plan: ContactPlan, e: Edges): void {
   if (e.pingoDown) plan.choice = 'pingo'
@@ -55,6 +85,7 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
   const plan = s.plan
   if (!plan) return
   const team = plan.team
+  if (slowMoAttack(s, plan, inputs, edges, events)) return
   if (plan.touchIndex === 3) recordChoice(s, plan, edges[team])
   if (s.time < plan.tIdeal) return
 
