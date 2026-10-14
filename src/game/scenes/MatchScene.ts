@@ -15,9 +15,9 @@ import { type ButtonName, Controls } from '../input/controls'
 import { getSession } from '../session'
 import { createFixedStepper, type FixedStepper } from '../loop/fixedStep'
 import { type ArenaRuntime, drawArena } from '../render/arenas'
-import { AthleteView } from '../render/AthleteView'
+import { AthleteView, type HairStyle } from '../render/AthleteView'
 import { BallView } from '../render/BallView'
-import { BallTrail, GroundMarks, SlowMoFx, sandPuff, sharkEffect } from '../render/effects'
+import { BallTrail, GroundMarks, hitFlash, SlowMoFx, sandPuff, sharkEffect } from '../render/effects'
 import { Hud } from '../render/Hud'
 import { ACTION_DURATION, LOOPING, type Pose, poseFor } from '../render/poses'
 import { toScreenX, toScreenY } from '../render/view'
@@ -45,6 +45,7 @@ const DEFAULT_DATA: MatchSceneData = {
 const FONT = 'Arial Black, Arial, sans-serif'
 const SKINS = [0xf1c27d, 0x8d5524, 0xc68642, 0xe0ac69]
 const HAIRS = [0x2b1b0e, 0xf5d76e, 0x111111, 0x4a2c17]
+const STYLES: HairStyle[] = ['curto', 'rabo', 'blackPower', 'bone']
 /** Fração da animação em que acontece o contato com a bola. */
 const CONTACT_KEY: Partial<Record<Athlete['action'], number>> = {
   chapa: 0.4,
@@ -115,7 +116,7 @@ export class MatchScene extends Phaser.Scene {
       { shirt: opponent.shirt, shorts: opponent.shorts },
     ]
     for (const a of this.state.athletes) {
-      const look = { ...looks[a.id], skin: SKINS[a.id], hair: HAIRS[a.id] }
+      const look = { ...looks[a.id], skin: SKINS[a.id], hair: HAIRS[a.id], style: STYLES[a.id] }
       this.athleteViews.push(new AthleteView(this, look, a.team === 0 ? 1 : -1))
     }
     this.drawNet()
@@ -268,6 +269,8 @@ export class MatchScene extends Phaser.Scene {
 
   private poseOf(a: Athlete, i: number): Pose {
     const s = this.state
+    // Câmera lenta: o atacante fica lá no alto, acompanhando a bola.
+    if (s.slowMo?.athleteId === a.id) return { ...poseFor('cabeca', 0.4), rootY: Math.min(1.4, Math.max(0, s.ball.y - 2.6)) }
     const d = ACTION_DURATION[a.action]
     const contact = CONTACT_KEY[a.action]
     if (contact !== undefined && a.actionT < d * (1 - contact)) {
@@ -299,6 +302,7 @@ export class MatchScene extends Phaser.Scene {
 
   private touchEffects(action: TouchAction, a: Athlete): void {
     if (action === 'forte' || action === 'pingo' || action === 'sharkataque') {
+      if (action !== 'pingo') hitFlash(this, toScreenX(this.state.ball.x), toScreenY(this.state.ball.y))
       sandPuff(this, toScreenX(a.x), toScreenY(0))
       this.audio.playSfx('areia')
     }

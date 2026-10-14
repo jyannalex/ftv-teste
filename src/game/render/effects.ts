@@ -29,7 +29,7 @@ export class BallTrail {
   private active = false
 
   constructor(scene: Phaser.Scene) {
-    this.g = scene.add.graphics()
+    this.g = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD)
   }
 
   start(color: number): void {
@@ -50,7 +50,8 @@ export class BallTrail {
     g.clear()
     this.points.forEach((p, i) => {
       const k = (i + 1) / this.points.length
-      g.fillStyle(this.color, 0.5 * k).fillCircle(p.x, p.y, 10 * k)
+      g.fillStyle(this.color, 0.25 * k).fillCircle(p.x, p.y, 18 * k)
+      g.fillStyle(this.color, 0.6 * k).fillCircle(p.x, p.y, 9 * k)
     })
   }
 }
@@ -141,4 +142,10 @@ export class SlowMoFx {
     this.text.setVisible(false)
     this.t = 0
   }
+}
+
+/** Brilho curto no contato de um ataque forte. */
+export function hitFlash(scene: Phaser.Scene, x: number, y: number): void {
+  const c = scene.add.circle(x, y, 16, 0xffffff, 0.9).setBlendMode(Phaser.BlendModes.ADD)
+  scene.tweens.add({ targets: c, scale: 3, alpha: 0, duration: 220, ease: 'Quad.easeOut', onComplete: () => c.destroy() })
 }
