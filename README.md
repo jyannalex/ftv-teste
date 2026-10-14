@@ -6,14 +6,16 @@ Jogo de futevôlei 2x2 para navegador e celular. Você joga contra o computador 
 
 | Ação | Celular | Teclado |
 |---|---|---|
-| Recepção / levantada | botão verde (esquerda) | J ou ↓ |
-| Saque / ataque | botão vermelho (direita) | K ou ↑ |
+| Mover | ◀ ▶ (canto esquerdo) | A/D ou ← → |
+| Saque, ataque forte, peixinho | botão FORTE | J |
+| Pingo | botão PINGO | K |
+| Sharkataque (barra cheia) | botão 🦈 | Espaço |
 | Pausa | botão ‖ | Esc |
 
-- O seu atleta corre sozinho até a bola. O que conta é apertar **na hora certa** (Perfeito, Bom ou Ruim).
-- São até 3 toques por lado, sem usar a mão: chapa ou peito → levantada → ataque de cabeça.
-- No Ataque, um **toque rápido** faz o **Pingo**, e **segurar e soltar** faz o ataque forte. Se segurar demais, a bola vai para fora.
-- Toques Perfeitos, defesas e pontos enchem a barra. Com ela cheia, um ataque forte perto da rede vira **Sharkataque**.
+- **Corra até a sombra da bola.** No lugar certo, o atleta recebe e levanta sozinho. Se a bola estiver um pouco longe, **FORTE** faz o **peixinho**.
+- **Saque:** segure FORTE e solte. ◀ ▶ mira curto ou fundo, e o anel amarelo mostra onde a bola vai cair.
+- **Ataque em câmera lenta:** no 3º toque o atleta pula e o tempo desacelera. **FORTE** bate forte, **PINGO** cai logo atrás da rede e ◀ ▶ mira. Com a barra cheia, **🦈** solta o **Sharkataque**, que é imparável.
+- Toques, defesas e pontos enchem a barra do Sharkataque, que fica embaixo da tela.
 
 ## Desenvolvimento
 
