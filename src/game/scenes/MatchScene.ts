@@ -20,7 +20,7 @@ import { createFixedStepper, type FixedStepper } from '../loop/fixedStep'
 import { type ArenaRuntime, drawArena } from '../render/arenas'
 import { type AthleteRenderer, AthleteView, HEAD_CENTER_H, type HairStyle } from '../render/AthleteView'
 import { BallView } from '../render/BallView'
-import { drawCourt, drawNet } from '../render/court'
+import { type CourtStyle, drawCourt, drawNet } from '../render/court'
 import { BallTrail, fxDepth, type GroundPoint, GroundMarks, hitFlash, SlowMoFx, sandPuff, sharkEffect } from '../render/effects'
 import { Hud } from '../render/Hud'
 import { ACTION_DURATION, blendPose, LOOPING, type Pose, poseFor } from '../render/poses'
@@ -51,10 +51,11 @@ const SKINS = [0xf1c27d, 0x8d5524, 0xc68642, 0xe0ac69]
 const HAIRS = [0x2b1b0e, 0xf5d76e, 0x111111, 0x4a2c17]
 const STYLES: HairStyle[] = ['curto', 'rabo', 'blackPower', 'bone']
 const NUMBERS = [7, 10, 2, 9]
-const COURT_COLORS: Record<ArenaId, [number, number]> = {
-  praia: [0xe0707e, 0xd2475f],
-  clube: [0x5b8ed6, 0x3a6bbd],
-  arena: [0xd2475f, 0xb02a44],
+/** Quadra de areia de cada cenário: cor da areia (a mesma do cenário) e da fita das linhas. */
+const COURT_STYLES: Record<ArenaId, CourtStyle> = {
+  praia: { sand: 0xf4d58d, tape: 0x1565c0, props: 'praia' },
+  clube: { sand: 0xedd9a3, tape: 0xf9a825, props: 'clube' },
+  arena: { sand: 0xe8cf8e, tape: 0xc62828, props: 'arena' },
 }
 /** Fração da animação em que acontece o contato com a bola. */
 const CONTACT_KEY: Partial<Record<Athlete['action'], number>> = {
@@ -148,7 +149,7 @@ export class MatchScene extends Phaser.Scene {
     this.partnerAI = control === 'solo' ? createAI(0, PARTNER_SKILL, 'equilibrado', createRng(seed + 2), { shark: false }) : null
 
     this.arena = drawArena(this, this.cfg.arena)
-    drawCourt(this, COURT_COLORS[this.cfg.arena])
+    drawCourt(this, COURT_STYLES[this.cfg.arena])
     this.marks = new GroundMarks(this)
     this.audio = gameAudio(this.game)
     const looks = [
