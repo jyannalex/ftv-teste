@@ -18,6 +18,8 @@ export const BALANCE = {
   reach: 0.7,
   /** Peixinho: alcance e intervalo do botão em volta do contato (s). */
   dive: { reach: 2.2, before: 0.6, after: 0.05 },
+  /** Contra ataque forte a bola chega rápida: alcance automático menor e peixinho mais curto. */
+  vsForte: { reachScale: 0.6, diveReach: 1.5, aiExtraReaction: 0.15 },
   /** Bola com pouso além da linha mais esta margem: ninguém toca. */
   outMargin: 0.3,
   /** Câmera lenta do ataque do jogador. */

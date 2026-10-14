@@ -96,7 +96,8 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
 
   if (!plan.resolving) {
     plan.resolving = true
-    if (d <= reachOf(s, plan.athleteId)) {
+    const reach = reachOf(s, plan.athleteId) * (plan.incoming === 'forte' ? BALANCE.vsForte.reachScale : 1)
+    if (d <= reach) {
       executeTouch(s, plan, action, 'normal', aim, events)
       return
     }
@@ -105,7 +106,8 @@ export function resolveContact(s: MatchState, inputs: [TeamInput, TeamInput], ed
   // Peixinho: botão esquerdo apertado perto do contato e bola a até 2,2 m.
   const pressAt = s.buttons[team].fortePressAt
   const dive = BALANCE.dive
-  if (d <= dive.reach && pressAt !== null && pressAt >= plan.tIdeal - dive.before) {
+  const diveReach = plan.incoming === 'forte' ? BALANCE.vsForte.diveReach : dive.reach
+  if (d <= diveReach && pressAt !== null && pressAt >= plan.tIdeal - dive.before) {
     athlete.x = plan.x
     executeTouch(s, plan, plan.touchIndex === 3 ? 'fraco' : action, 'peixinho', 'meio', events)
     return
